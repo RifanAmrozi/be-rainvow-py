@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+python-dotenv
+pydantic
+opencv-python
+aiofiles
+requests
