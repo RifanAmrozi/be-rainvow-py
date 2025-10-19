@@ -6,7 +6,7 @@
 1. Copy `.env.example` -> `.env` and fill values
 2. python3 -m venv .venv && source .venv/bin/activate
 3. pip3 install -r requirements.txt
-4. uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 --reload-exclude ".venv/*"
+4. uvicorn app.main:app --reload --reload-dir app
 5. Open http://localhost:8000/api/stream?url=<your-rtsp-url>
 
 

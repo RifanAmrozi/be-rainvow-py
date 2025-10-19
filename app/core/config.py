@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     DB_PORT: int = Field(5432)
     DB_USER: str = Field("postgres")
     DB_PASSWORD: str = Field("postgres")
-    DB_NAME: str = Field("rtsp_db")
+    DB_NAME: str = Field("postgres")
 
     # RTSP
     RTSP_DEFAULT_URL: str = Field("")
