@@ -1,7 +1,7 @@
 import time
 import datetime
-from app.infra.rtsp_reader import RtspReader
-from app.infra.api_client import ApiClient
+from app.service.rtsp import RtspReader
+from app.client.api import ApiClient
 from app.core.config import settings
 
 def run_stream_worker():

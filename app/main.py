@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from app.core.config import settings
-from app.usecase.stream_worker import run_stream_worker
+from app.service.stream_worker import run_stream_worker
 from app.db.session import test_connection
+from app.routers.camera_router import router as camera_router
 
 app = FastAPI(title="Backend Server")
 
@@ -9,7 +10,9 @@ app = FastAPI(title="Backend Server")
 def startup_event():
     print("🚀 Starting server...")
     test_connection()
-    
+
+app.include_router(camera_router)
+
 @app.get("/")
 def root():
     return {"message": "Hello, World!"}
