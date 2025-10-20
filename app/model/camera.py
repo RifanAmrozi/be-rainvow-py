@@ -6,7 +6,7 @@ Base = declarative_base()
 
 class Camera(Base):
     __tablename__ = "camera"
-    __table_args__ = {"schema": "public"}  # 👈 Add this line!
+    __table_args__ = {"schema": "public"} 
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
