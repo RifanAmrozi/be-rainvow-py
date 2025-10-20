@@ -1,13 +1,18 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
+from typing import Optional
 from app.db.session import get_db
 from app.repository.camera import get_all_cameras, create_camera
 
 router = APIRouter(prefix="/camera", tags=["Camera"])
 
 @router.get("/")
-def list_cameras(db: Session = Depends(get_db)):
-    cameras = get_all_cameras(db)
+def list_cameras(
+    id: Optional[str] = Query(None),
+    name: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    cameras = get_all_cameras(db, id=id, name=name)
     return cameras
 
 @router.post("/")
