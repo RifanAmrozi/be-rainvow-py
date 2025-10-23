@@ -6,8 +6,14 @@
 1. Copy `.env.example` -> `.env` and fill values
 2. python3 -m venv .venv && source .venv/bin/activate
 3. pip3 install -r requirements.txt
-4. uvicorn app.main:app --reload --reload-dir app
+4. uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir app
 5. Open http://localhost:8000/api/stream?url=<your-rtsp-url>
+
+## Run MediamMTX
+./mediamtx mediamtx.yml
+
+## Find Local IP
+ipconfig getifaddr en0
 
 
 Notes:

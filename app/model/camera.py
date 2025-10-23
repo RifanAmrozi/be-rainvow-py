@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, Boolean
 from app.db.session import engine
 from sqlalchemy.orm import declarative_base
 
@@ -11,8 +11,9 @@ class Camera(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     aisle_loc = Column(String, nullable=False)
-    status = Column(String, nullable=False)
-    preview_img = Column(String, nullable=False)
+    status = Column(String, nullable=True)
+    preview_img = Column(String, nullable=True)
     rtsp_url = Column(String, nullable=False)
     store_id = Column(String, nullable=False)
-    status = Column(String, nullable=True)
+    status = Column(Boolean, nullable=True) 
+    webrtc_url = Column(String, nullable=True)
