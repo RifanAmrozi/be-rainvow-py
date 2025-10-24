@@ -17,5 +17,10 @@ def create_user(db: Session, data: UserCreate):
     db.refresh(new_user)
     return new_user
 
-def get_user_by_name(db: Session, username: str):
-    return db.query(User).filter(User.username == username).first()
+def get_user_by_name(db: Session, username: str=None, id: str = None):
+    query = db.query(User)
+    if id:
+        query = query.filter(User.id == id)
+    if username:
+        query = query.filter(User.username == username)
+    return query.first()
