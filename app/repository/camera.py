@@ -73,7 +73,6 @@ def create_camera(db: Session, camera_data: CameraCreate):
     new_camera = Camera(
         name=camera_data.name,
         aisle_loc=camera_data.aisle_loc,
-        status=camera_data.status,
         preview_img=camera_data.preview_img,
         rtsp_url=camera_data.rtsp_url,
         store_id=camera_data.store_id,
