@@ -4,12 +4,14 @@ from app.model.camera_schema import CameraCreate
 import socket
 import yaml
 
-def get_all_cameras(db: Session, id: str = None, name: str = None):
+def get_all_cameras(db: Session, id: str = None, name: str = None, store_id: str = None):
     query = db.query(Camera)
     if id:
         query = query.filter(Camera.id == id)
     if name:
         query = query.filter(Camera.name.ilike(f"%{name}%"))
+    if store_id:
+        query = query.filter(Camera.store_id == store_id)
     return query.all()
 
 

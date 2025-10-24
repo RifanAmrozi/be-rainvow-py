@@ -11,9 +11,10 @@ router = APIRouter(prefix="/camera", tags=["Camera"])
 def list_cameras(
     id: Optional[str] = Query(None),
     name: Optional[str] = Query(None),
+    store_id: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
-    cameras = get_all_cameras(db, id=id, name=name)
+    cameras = get_all_cameras(db, id=id, name=name, store_id=store_id)
     return cameras
 
 @router.post("/")
