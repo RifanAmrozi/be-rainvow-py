@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     # Tuning
     STREAM_WORKERS: int = Field(2)
 
+    # JWT / Auth
+    SECRET_KEY: str = Field("defaultsecret")
+    ALGORITHM: str = Field("HS256")
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(30)
+
     # 👇 this replaces your old `class Config`
     model_config = SettingsConfigDict(
         env_file=".env",

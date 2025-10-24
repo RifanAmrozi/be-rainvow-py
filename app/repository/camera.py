@@ -62,7 +62,7 @@ def create_camera(db: Session, camera_data: CameraCreate):
     ip_local = get_local_ip()
 
     # --- create WebRTC URL (for browser playback) ---
-    webrtc_url = f"http://{ip_local}:8889/{camera_data.name.lower().replace(' ', '-')}"
+    webrtc_url = f"http://{ip_local}:8889/{camera_data.name.lower().replace(' ', '-')}/whep"
 
     # --- update mediamtx.yml dynamically ---
     add_camera_to_mediamtx(camera_data.name, camera_data.rtsp_url)

@@ -3,6 +3,8 @@ from app.core.config import settings
 from app.service.stream_worker import run_stream_worker
 from app.db.session import test_connection
 from app.routers.camera_router import router as camera_router
+from app.routers.user_router import router as user_router
+from app.routers.store_router import router as store_router
 
 app = FastAPI(title="Backend Server")
 
@@ -12,6 +14,8 @@ def startup_event():
     test_connection()
 
 app.include_router(camera_router)
+app.include_router(user_router)
+app.include_router(store_router)
 
 @app.get("/")
 def root():
