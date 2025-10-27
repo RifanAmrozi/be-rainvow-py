@@ -28,8 +28,7 @@ def login(data: UserLogin, db: Session = Depends(get_db)):
     return {
         "access_token": token,
         "token_type": "bearer",
-        "username": user.username,
-        "role": user.role,
+        "id": user.id,
         "store_id": user.store_id,
     }
 

@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     # App
     APP_HOST: str = Field("0.0.0.0")
     APP_PORT: int = Field(8000)
+    WEBHOOK_URL: str = Field("localhost:3000/webhook/alert")
 
     # Tuning
     STREAM_WORKERS: int = Field(2)

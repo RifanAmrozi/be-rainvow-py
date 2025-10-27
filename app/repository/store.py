@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from typing import Optional
 from app.model.store import Store
 from app.model.store_schema import StoreCreate
 import uuid
@@ -14,5 +15,8 @@ def create_store(db: Session, store_data: StoreCreate):
     db.refresh(new_store)
     return new_store
 
-def get_stores(db: Session):
-    return db.query(Store).all()
+def get_stores(db: Session, id: Optional[str] = None):
+    query = db.query(Store)
+    if id:
+        query = query.filter(Store.id == id)
+    return query.all()
