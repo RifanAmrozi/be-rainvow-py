@@ -1,4 +1,8 @@
 paths:
+  cam-front:
+    source: rtsp://170.93.143.139/rtplive/470011e600ef003a004ee33696235daa
+    sourceOnDemand: true
+    sourceProtocol: tcp
   cam3:
     source: rtsp://170.93.143.139/rtplive/470011e600ef003a004ee33696235daa
     sourceOnDemand: true
@@ -11,6 +15,10 @@ paths:
     source: rtsp://192.168.0.10:554/stream
     sourceOnDemand: true
     sourceProtocol: tcp
+  jorexx:
+    source: rtsp://192.168.77.21/jo
+    sourceOnDemand: true
+    sourceProtocol: tcp
   medan_traffic:
     source: https://atcsdishub.medan.go.id/stream/L2AHMADYANIPULAUPINANG/stream.m3u8
     sourceOnDemand: true
@@ -18,7 +26,6 @@ paths:
     source: rtsp://170.93.143.139/rtplive/470011e600ef003a004ee33696235daa
     sourceOnDemand: true
     sourceProtocol: tcp
-    
   xample002:
     source: rtsp://10.98.169.25/live/ch00_0
     sourceOnDemand: true

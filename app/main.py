@@ -14,7 +14,7 @@ app = FastAPI(title="Backend Server")
 @app.on_event("startup")
 def startup_event():
     print("🚀 Starting server...")
-    asyncio.create_task(send_fake_alerts())
+    # asyncio.create_task(send_fake_alerts())
     test_connection()
 
 app.include_router(camera_router)
