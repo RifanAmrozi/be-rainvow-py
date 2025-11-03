@@ -138,6 +138,7 @@ celerybeat.pid
 .env
 .envrc
 .venv
+alert_clips
 env/
 venv/
 ENV/

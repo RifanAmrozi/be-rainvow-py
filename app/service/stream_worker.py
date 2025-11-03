@@ -1,74 +1,107 @@
-import time
-import datetime
 import asyncio
-import aiohttp
-import uuid
+import time
 import random
-from app.service.rtsp import RtspReader
-from app.client.api import ApiClient
+import uuid
+from datetime import datetime
+import cv2
+import numpy as np
+from collections import deque
 from app.core.config import settings
-from app.websocket.websocket_router import manager  # for WebSocket broadcasting
+from app.websocket.websocket_router import manager
+from app.service.detection import ShopliftingPoseDetectorWithGrab
+from app.service.detection import ThreadedRTSPCapture
+import aiohttp
 
 
 async def run_stream_worker(app):
     """
-    Simulated stream worker that reads RTSP frames and periodically sends alert-like data
-    to both WebSocket and an external webhook.
+    Background worker that runs the shoplifting detection model,
+    broadcasts WebSocket alerts, and posts webhook alerts.
     """
-    reader = RtspReader(settings.RTSP_DEFAULT_URL)
-    if not reader.is_opened():
-        print("❌ Cannot open RTSP stream")
+    print("🚀 Starting detection worker...")
+
+    # === Initialize detector ===
+    try:
+        detector = ShopliftingPoseDetectorWithGrab(
+            pose_model="yolo11m-pose.pt",
+            debug_mode=True
+        )
+    except Exception as e:
+        print(f"❌ Failed to initialize detector: {e}")
         return
 
-    api = ApiClient(settings.API_URL)
-    frame_count = 0
-    start = time.time()
-    webhook_url = "https://webhook.site/e880d0cb-7b19-4b99-8099-c732a190acb1"
+    # === Connect to RTSP ===
+    rtsp_url =  "rtsp://10.98.169.25/live/ch00_0"
+    threaded_capture = ThreadedRTSPCapture(rtsp_url=rtsp_url, buffer_size=1, name="ShopliftingCam")
 
-    print("🎥 Stream started...")
+    try:
+        threaded_capture.start()
+        time.sleep(2)
+        stats = threaded_capture.get_stats()
+        if not stats['is_alive']:
+            print("❌ Cannot start RTSP capture")
+            return
+    except Exception as e:
+        print(f"❌ Failed to start capture: {e}")
+        return
+
+    print(f"🎥 RTSP connected at {rtsp_url}")
+    detector.fps = 25
+    total_alerts = 0
+    frame_times = deque(maxlen=30)
 
     async with aiohttp.ClientSession() as session:
-        while not app.state.stop_stream_flag:
-            ret, frame = reader.read_frame()
-            if not ret:
-                print("⚠️ Failed to grab frame, stopping...")
-                break
+        try:
+            while not app.state.stop_stream_flag:
+                t_start = time.time()
+                ret, frame = threaded_capture.read()
 
-            frame_count += 1
+                if not ret or frame is None:
+                    stats = threaded_capture.get_stats()
+                    if stats['time_since_last_frame'] > 5.0:
+                        print("⚠️ No frames received for 5s, stream may be down")
+                    await asyncio.sleep(0.1)
+                    continue
 
-            # Every ~60 frames, simulate sending an alert
-            if frame_count % 60 == 0:
-                fps = frame_count / (time.time() - start)
-                alert = {
-                    "id": str(uuid.uuid4()),
-                    "store_id": f"store-{random.randint(1, 3)}",
-                    "camera_id": settings.CAMERA_ID,
-                    "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
-                    "suspicious_activity": random.choice([True, False]),
-                    "alert_message": random.choice([
-                        "Motion detected in restricted area",
-                        "Camera disconnected",
-                        "Unusual activity detected",
-                        "System reboot detected"
-                    ]),
-                    "image_url": f"http://example.com/images/{random.randint(1, 5)}.jpg",
-                    "video_url": f"http://example.com/videos/{random.randint(1, 5)}.mp4"
-                }
+                frame = cv2.resize(frame, (1280, 720))
+                processed, alerts = detector.process_frame(frame)
 
-                # 🛰 Send to WebSocket
-                await manager.broadcast(alert)
+                # === If detection found, trigger alert ===
+                if alerts:
+                    print(alerts)
+                    total_alerts += len(alerts)
 
-                # 🌐 Send to webhook (external endpoint) comment for now
-                try:
-                    async with session.post(webhook_url, json=alert) as resp:
-                        print(f"✅ Sent alert to webhook (HTTP {resp.status}) — {alert['alert_message']}")
-                except Exception as e:
-                    print(f"⚠️ Failed to send webhook: {e}")
+                    for alert in alerts:
+                        alert_payload = {
+                            "id": str(uuid.uuid4()),
+                            "store_id": f"store-{random.randint(1,3)}",
+                            "camera_id": settings.CAMERA_ID,
+                            "timestamp": datetime.utcnow().isoformat(),
+                            "suspicious_activity": True,
+                            "alert_message": alert.get("message", "Suspicious behavior detected"),
+                            "image_url": f"http://example.com/images/{random.randint(1,5)}.jpg",
+                            "video_url": f"http://example.com/videos/{random.randint(1,5)}.mp4"
+                        }
 
-                # Also print to console for visibility
-                print(f"📤 Alert sent | FPS={fps:.2f} | Total frames={frame_count}")
+                        # ✅ Broadcast to websocket
+                        await manager.broadcast(alert_payload)
 
-            await asyncio.sleep(1/30)  # Simulate ~30 FPS
+                        # ✅ Send webhook
+                        try:
+                            async with session.post("https://webhook.site/79d2daea-08b6-4692-87c4-8e955e576773",
+                                                    json=alert_payload) as resp:
+                                print(f"📤 Sent alert (HTTP {resp.status})")
+                        except Exception as e:
+                            print(f"⚠️ Failed to send webhook: {e}")
 
-    reader.release()
-    print("🛑 Stream stopped.")
+                # Maintain FPS tracking
+                frame_times.append(time.time() - t_start)
+                current_fps = 1.0 / np.mean(frame_times) if frame_times else 0
+                await asyncio.sleep(max(0, 1 / 25 - (time.time() - t_start)))
+
+        except asyncio.CancelledError:
+            print("🛑 Detection worker cancelled")
+        finally:
+            threaded_capture.stop()
+            cv2.destroyAllWindows()
+            print(f"✅ Detection worker stopped. Total alerts: {total_alerts}")

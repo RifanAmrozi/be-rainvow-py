@@ -21,3 +21,6 @@ mtx:
 
 env:
 	source .venv/bin/activate
+
+freeze:
+	pip3 freeze > requirements.txt
