@@ -4,9 +4,11 @@ import random
 import uuid
 from datetime import datetime
 from app.core.config import settings
+from app.websocket.websocket_router import manager
 
-async def send_fake_alerts():
-    url = f"http://{settings.WEBHOOK_URL}/webhook/alert"  # Change if using remote IP
+async def send_alerts():
+    # url = f"http://{settings.WEBHOOK_URL}/webhook/alert"
+    url='https://webhook.site/79d2daea-08b6-4692-87c4-8e955e576773'
 
     async with aiohttp.ClientSession() as session:
         while True:
@@ -26,10 +28,14 @@ async def send_fake_alerts():
                 "video_url": f"http://example.com/videos/{random.randint(1, 5)}.mp4"
             }
 
+            # 🔥 Send to connected WebSocket clients
+            await manager.broadcast(fake_alert)
+
+            # Also call webhook endpoint if you want (optional)
             try:
                 async with session.post(url, json=fake_alert) as resp:
-                    print(f"✅ Sent fake alert {fake_alert['id']} (status: {resp.status})")
+                    print(f"✅ Sent fake alert (HTTP {resp.status})")
             except Exception as e:
-                print(f"⚠️ Failed to send alert: {e}")
+                print(f"⚠️ Failed to send webhook: {e}")
 
             await asyncio.sleep(60)

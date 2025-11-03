@@ -6,21 +6,26 @@ from app.routers.camera_router import router as camera_router
 from app.routers.user_router import router as user_router
 from app.routers.store_router import router as store_router
 from app.routers.webhook_router import router as webhook_router
+from app.service.alert import send_alerts
+from app.websocket.websocket_router import router as websocket_router
 import asyncio
-from app.service.alert import send_fake_alerts
 
 app = FastAPI(title="Backend Server")
 
 @app.on_event("startup")
 def startup_event():
     print("🚀 Starting server...")
-    # asyncio.create_task(send_fake_alerts())
+    app.state.stream_worker_task = None
+    app.state.stop_stream_flag = False
+    # TODO: Remove to Enable alerts sending
+    # asyncio.create_task(send_alerts())
     test_connection()
 
 app.include_router(camera_router)
 app.include_router(user_router)
 app.include_router(store_router)
 app.include_router(webhook_router)
+app.include_router(websocket_router)
 
 @app.get("/")
 def root():
@@ -31,7 +36,22 @@ def ping():
     return {"ping": "pong"}
 
 @app.get("/start")
-def start_stream():
-    # WARNING: blocking loop for now (for demo)
-    run_stream_worker()
+async def start_stream():
+    if app.state.stream_worker_task and not app.state.stream_worker_task.done():
+        return {"status": "already running"}
+
+    app.state.stop_stream_flag = False
+    app.state.stream_worker_task = asyncio.create_task(run_stream_worker(app))
     return {"status": "started"}
+
+
+@app.get("/stop")
+async def stop_stream():
+    if not app.state.stream_worker_task or app.state.stream_worker_task.done():
+        return {"status": "no active stream"}
+
+    app.state.stop_stream_flag = True
+    await app.state.stream_worker_task
+    app.state.stream_worker_task = None
+    return {"status": "stopped"}
+

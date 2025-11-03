@@ -3,19 +3,21 @@ import datetime
 from app.service.rtsp import RtspReader
 from app.client.api import ApiClient
 from app.core.config import settings
+import asyncio
 
-def run_stream_worker():
-    reader = RtspReader(settings.RTSP_URL)
+async def run_stream_worker(app):
+    reader = RtspReader(settings.RTSP_DEFAULT_URL)
     if not reader.is_opened():
         print("❌ Cannot open RTSP stream")
         return
 
     api = ApiClient(settings.API_URL)
-
     frame_count = 0
     start = time.time()
 
-    while True:
+    print("🎥 Stream started...")
+
+    while not app.state.stop_stream_flag:
         ret, frame = reader.read_frame()
         if not ret:
             print("⚠️ Failed to grab frame, stopping...")
@@ -30,7 +32,8 @@ def run_stream_worker():
                 "fps": fps,
                 "frame_count": frame_count,
             }
-            # status = api.post_stats(payload)
-            print("POST result:",payload)
+            print("POST result:", payload)
+        await asyncio.sleep(0.01)
 
     reader.release()
+    print("🛑 Stream stopped.")
