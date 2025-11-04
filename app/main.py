@@ -6,8 +6,8 @@ from app.routers.camera_router import router as camera_router
 from app.routers.user_router import router as user_router
 from app.routers.store_router import router as store_router
 from app.routers.webhook_router import router as webhook_router
-from app.service.alert import send_alerts
 from app.websocket.websocket_router import router as websocket_router
+from app.routers.alert_router import router as alert_router
 import asyncio
 
 app = FastAPI(title="Backend Server")
@@ -15,10 +15,9 @@ app = FastAPI(title="Backend Server")
 @app.on_event("startup")
 def startup_event():
     print("🚀 Starting server...")
-    app.state.stream_worker_task = None
+    app.state.stream_worker_task = asyncio.create_task(run_stream_worker(app))
     app.state.stop_stream_flag = False
-    # TODO: Remove to Enable alerts sending
-    # asyncio.create_task(send_alerts())
+
     test_connection()
 
 app.include_router(camera_router)
@@ -26,10 +25,7 @@ app.include_router(user_router)
 app.include_router(store_router)
 app.include_router(webhook_router)
 app.include_router(websocket_router)
-
-@app.get("/")
-def root():
-    return {"message": "Hello, World!"}
+app.include_router(alert_router)
 
 @app.get("/ping")
 def ping():

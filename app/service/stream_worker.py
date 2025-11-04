@@ -1,15 +1,13 @@
 import asyncio
 import time
-import random
-import uuid
-from datetime import datetime
 import cv2
 import numpy as np
 from collections import deque
-from app.core.config import settings
 from app.websocket.websocket_router import manager
 from app.service.detection import ShopliftingPoseDetectorWithGrab
 from app.service.detection import ThreadedRTSPCapture
+from app.repository import alert_repository
+from app.db.session import SessionLocal
 import aiohttp
 
 
@@ -49,7 +47,7 @@ async def run_stream_worker(app):
     detector.fps = 25
     total_alerts = 0
     frame_times = deque(maxlen=30)
-
+    db = SessionLocal() 
     async with aiohttp.ClientSession() as session:
         try:
             while not app.state.stop_stream_flag:
@@ -72,27 +70,11 @@ async def run_stream_worker(app):
                     total_alerts += len(alerts)
 
                     for alert in alerts:
-                        alert_payload = {
-                            "id": str(uuid.uuid4()),
-                            "store_id": f"store-{random.randint(1,3)}",
-                            "camera_id": settings.CAMERA_ID,
-                            "timestamp": datetime.utcnow().isoformat(),
-                            "suspicious_activity": True,
-                            "alert_message": alert.get("message", "Suspicious behavior detected"),
-                            "image_url": f"http://example.com/images/{random.randint(1,5)}.jpg",
-                            "video_url": f"http://example.com/videos/{random.randint(1,5)}.mp4"
-                        }
-
                         # ✅ Broadcast to websocket
-                        await manager.broadcast(alert_payload)
-
-                        # ✅ Send webhook
-                        try:
-                            async with session.post("https://webhook.site/79d2daea-08b6-4692-87c4-8e955e576773",
-                                                    json=alert_payload) as resp:
-                                print(f"📤 Sent alert (HTTP {resp.status})")
-                        except Exception as e:
-                            print(f"⚠️ Failed to send webhook: {e}")
+                        await manager.broadcast(alert)
+                        print("   🚨 Alert broadcasted via WebSocket")
+                        # save to database
+                        await alert_repository.insert_alert(db, alert)
 
                 # Maintain FPS tracking
                 frame_times.append(time.time() - t_start)

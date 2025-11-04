@@ -1,13 +1,17 @@
-from pydantic import BaseModel
-from typing import Optional
 from datetime import datetime
+from sqlalchemy import Column, String, Boolean, DateTime
+from sqlalchemy.orm import declarative_base
 
-class Alert(BaseModel):
-    id: str
-    store_id: str
-    camera_id: str
-    timestamp: datetime
-    suspicious_activity: bool
-    alert_message: str
-    image_url: Optional[str] = None
-    video_url: Optional[str] = None
+Base = declarative_base()
+
+class Alert(Base):
+    __tablename__ = "alert"
+
+    id = Column(String, primary_key=True, index=True)
+    title = Column(String, nullable=False)
+    incident_start = Column(DateTime, nullable=False)
+    is_valid = Column(Boolean, default=True)
+    video_url = Column(String, nullable=True)
+    notes = Column(String, nullable=True)
+    store_id = Column(String, index=True, nullable=False)
+    camera_id = Column(String, index=True, nullable=False)

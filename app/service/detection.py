@@ -2795,15 +2795,14 @@ class ShopliftingPoseDetectorWithGrab:
                         if clip_name:
                             print(f"   Clip: {clip_name}")
 
+                        # TODO: use real data
                         alert_payload = {
                             "id": str(uuid.uuid4()),
-                            "store_id": f"store-{random.randint(1,3)}",
-                            "camera_id": settings.CAMERA_ID,
-                            "timestamp": datetime.utcnow().isoformat(),
-                            "suspicious_activity": True,
-                            "alert_message": "Suspicious behavior detected",
-                            "image_url": f"http://example.com/images/{random.randint(1,5)}.jpg",
-                            "video_url": f"http://example.com/videos/{random.randint(1,5)}.mp4"
+                            "title": "Shoplifting Alert",
+                            "incident_start": datetime.utcnow().isoformat(),
+                            "video_url": clip_name,
+                            "store_id": "d4c77b10-1a0f-4c21-9a7b-8bcb1c2a5678",
+                            "camera_id": "c9cb07a4-be1b-41ae-9aac-db1d8458e132",
                         }
 
                         return "processed", [alert_payload]
