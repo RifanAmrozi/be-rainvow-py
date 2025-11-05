@@ -4,7 +4,7 @@ from datetime import datetime
 from uuid import UUID
 
 class AlertCreate(BaseModel):
-    id: str
+    id: Optional[str] = None
     title: str
     incident_start: datetime
     is_valid: Optional[bool] = None

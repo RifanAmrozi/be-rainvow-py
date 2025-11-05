@@ -1,10 +1,10 @@
 from sqlalchemy.orm import Session
 from app.model.alert import Alert
 from app.model.alert_schema import AlertCreate
+from typing import Optional
 
 
 def insert_alert(db: Session, data: AlertCreate):
-    print("Inserting alert into database...", data)
     new_alert = Alert(
         id=data.id,
         title=data.title,
@@ -24,9 +24,24 @@ def insert_alert(db: Session, data: AlertCreate):
 def get_alert_by_id(db: Session, id: str):
     return db.query(Alert).filter(Alert.id == id).first()
 
+def update_alert(db: Session, id: str, data: AlertCreate):
+    alert = db.query(Alert).filter(Alert.id == id).first()
+    if alert:
+        alert.title = data.title
+        alert.is_valid = data.is_valid
+        alert.notes = data.notes
+        db.commit()
+        db.refresh(alert)
+    return alert
 
-def get_alerts_by_store(db: Session, store_id: str):
-    return db.query(Alert).filter(Alert.store_id == store_id).all()
+
+def get_alerts_by_store(db: Session, is_valid: Optional[bool], store_id: str):
+    query = db.query(Alert).filter(Alert.store_id == store_id)
+    if is_valid is not None:
+        query = query.filter(Alert.is_valid.isnot(None))
+    else:
+        query = query.filter(Alert.is_valid.is_(None))
+    return query.all()
 
 
 def get_all_alerts(db: Session, limit: int = 50):
