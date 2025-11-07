@@ -10,7 +10,7 @@ class Alert(Base):
     id = Column(String, primary_key=True, index=True)
     title = Column(String, nullable=False)
     incident_start = Column(DateTime, nullable=False)
-    is_valid = Column(Boolean, default=True)
+    is_valid = Column(Boolean, default=None)
     video_url = Column(String, nullable=True)
     notes = Column(String, nullable=True)
     store_id = Column(String, index=True, nullable=False)

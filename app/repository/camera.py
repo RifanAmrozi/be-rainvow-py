@@ -5,14 +5,18 @@ import socket
 import yaml
 
 def get_all_cameras(db: Session, id: str = None, name: str = None, store_id: str = None):
-    query = db.query(Camera)
-    if id:
-        query = query.filter(Camera.id == id)
-    if name:
-        query = query.filter(Camera.name.ilike(f"%{name}%"))
-    if store_id:
-        query = query.filter(Camera.store_id == store_id)
-    return query.all()
+    try:
+        query = db.query(Camera)
+        if id:
+            query = query.filter(Camera.id == id)
+        if name:
+            query = query.filter(Camera.name.ilike(f"%{name}%"))
+        if store_id:
+            query = query.filter(Camera.store_id == store_id)
+        return query.all()
+    except Exception as e:
+        print(f"Error: {e}")
+        return None
 
 
 
@@ -85,3 +89,12 @@ def create_camera(db: Session, camera_data: CameraCreate):
 
     return new_camera
 
+def update_rtsp(db: Session, camera: Camera, new_rtsp_url: str):
+    camera.rtsp_url = new_rtsp_url
+    db.commit()
+    db.refresh(camera)
+
+    # --- update mediamtx.yml dynamically ---
+    add_camera_to_mediamtx(camera.name, new_rtsp_url)
+
+    return camera

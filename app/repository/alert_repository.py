@@ -1,28 +1,50 @@
 from sqlalchemy.orm import Session
 from app.model.alert import Alert
 from app.model.alert_schema import AlertCreate
+from app.model.camera import Camera
 from typing import Optional
+from datetime import datetime
 
+def insert_alert(db: Session, data):
+    if isinstance(data, dict):
+        payload = data
+    elif isinstance(data, AlertCreate):
+        payload = data.dict()
+    else:
+        raise TypeError("insert_alert() expects dict or AlertCreate model")
 
-def insert_alert(db: Session, data: AlertCreate):
-    new_alert = Alert(
-        id=data.id,
-        title=data.title,
-        incident_start=data.incident_start,
-        is_valid=data.is_valid,
-        video_url=data.video_url,
-        notes=data.notes,
-        store_id=data.store_id,
-        camera_id=data.camera_id,
-    )
+    if isinstance(payload.get("incident_start"), str):
+        try:
+            payload["incident_start"] = datetime.fromisoformat(
+                payload["incident_start"].replace("Z", "")
+            )
+        except Exception:
+            print("⚠️ Failed to parse incident_start timestamp")
+
+    new_alert = Alert(**payload)
+
     db.add(new_alert)
     db.commit()
     db.refresh(new_alert)
+
     return new_alert
 
-
 def get_alert_by_id(db: Session, id: str):
-    return db.query(Alert).filter(Alert.id == id).first()
+    result = (
+        db.query(Alert, Camera.name.label("camera_name"), Camera.aisle_loc.label("aisle_loc"))
+        .join(Camera, Alert.camera_id == Camera.id)
+        .filter(Alert.id == id)
+        .first()
+    )
+
+    if not result:
+        return None
+
+    alert, camera_name, aisle_loc = result
+    alert_dict = alert.__dict__.copy()
+    alert_dict["camera_name"] = camera_name
+    alert_dict["aisle_loc"] = aisle_loc
+    return alert_dict
 
 def update_alert(db: Session, id: str, data: AlertCreate):
     alert = db.query(Alert).filter(Alert.id == id).first()
@@ -36,12 +58,28 @@ def update_alert(db: Session, id: str, data: AlertCreate):
 
 
 def get_alerts_by_store(db: Session, is_valid: Optional[bool], store_id: str):
-    query = db.query(Alert).filter(Alert.store_id == store_id)
+    query = (
+        db.query(
+            Alert,
+            Camera.name.label("camera_name"),
+            Camera.aisle_loc.label("aisle_loc"),
+        )
+        .join(Camera, Alert.camera_id == Camera.id)
+        .filter(Alert.store_id == store_id)
+    )
     if is_valid is not None:
-        query = query.filter(Alert.is_valid.isnot(None))
+        query = query.filter(Alert.is_valid.is_(is_valid))
     else:
         query = query.filter(Alert.is_valid.is_(None))
-    return query.all()
+    results = query.all()
+    alerts = []
+    for result in results:
+        alert, camera_name, aisle_loc = result
+        alert_dict = alert.__dict__.copy()
+        alert_dict["camera_name"] = camera_name
+        alert_dict["aisle_loc"] = aisle_loc
+        alerts.append(alert_dict)
+    return alerts
 
 
 def get_all_alerts(db: Session, limit: int = 50):

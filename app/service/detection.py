@@ -2800,9 +2800,9 @@ class ShopliftingPoseDetectorWithGrab:
                             "id": str(uuid.uuid4()),
                             "title": "Shoplifting Alert",
                             "incident_start": datetime.utcnow().isoformat(),
+                            "is_valid": None,
                             "video_url": clip_name,
-                            "store_id": "d4c77b10-1a0f-4c21-9a7b-8bcb1c2a5678",
-                            "camera_id": "c9cb07a4-be1b-41ae-9aac-db1d8458e132",
+                            "notes": None
                         }
 
                         return "processed", [alert_payload]

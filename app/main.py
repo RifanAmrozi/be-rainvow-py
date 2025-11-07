@@ -1,4 +1,5 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from app.core.config import settings
 from app.service.stream_worker import run_stream_worker
 from app.db.session import test_connection
@@ -9,13 +10,32 @@ from app.routers.webhook_router import router as webhook_router
 from app.websocket.websocket_router import router as websocket_router
 from app.routers.alert_router import router as alert_router
 import asyncio
+import os
 
-app = FastAPI(title="Backend Server")
+app = FastAPI()
+
+VIDEO_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "alert_clips"))
+
+@app.get("/alert_clips/{filename}")
+async def get_clip(filename: str):
+    file_path = os.path.join(VIDEO_DIR, filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+
+    return FileResponse(
+        file_path,
+        media_type="video/mp4",
+        headers={
+            "Accept-Ranges": "bytes",       # enable seeking
+            "Content-Disposition": "inline" # don't force download
+        }
+    )
 
 @app.on_event("startup")
 def startup_event():
     print("🚀 Starting server...")
-    app.state.stream_worker_task = asyncio.create_task(run_stream_worker(app))
+    # comment this line to disable stream worker on startup
+    app.state.stream_worker_task = asyncio.create_task(run_stream_worker(app, settings.CAMERA_ID))
     app.state.stop_stream_flag = False
 
     test_connection()
@@ -37,7 +57,7 @@ async def start_stream():
         return {"status": "already running"}
 
     app.state.stop_stream_flag = False
-    app.state.stream_worker_task = asyncio.create_task(run_stream_worker(app))
+    app.state.stream_worker_task = asyncio.create_task(run_stream_worker(app, settings.CAMERA_ID))
     return {"status": "started"}
 
 

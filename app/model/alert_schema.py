@@ -18,6 +18,8 @@ class AlertResponse(AlertCreate):
     id: UUID
     store_id: UUID
     camera_id: UUID
+    camera_name: Optional[str] = None
+    aisle_loc: Optional[str] = None
 
     class Config:
         orm_mode = True

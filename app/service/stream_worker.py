@@ -7,18 +7,14 @@ from app.websocket.websocket_router import manager
 from app.service.detection import ShopliftingPoseDetectorWithGrab
 from app.service.detection import ThreadedRTSPCapture
 from app.repository import alert_repository
-from app.db.session import SessionLocal
+from app.db.session import get_db, SessionLocal
+from app.repository.camera import get_all_cameras
+from app.repository.alert_repository import insert_alert
+from app.core.config import settings
 import aiohttp
 
 
-async def run_stream_worker(app):
-    """
-    Background worker that runs the shoplifting detection model,
-    broadcasts WebSocket alerts, and posts webhook alerts.
-    """
-    print("🚀 Starting detection worker...")
-
-    # === Initialize detector ===
+async def run_stream_worker(app, camera_id: str):
     try:
         detector = ShopliftingPoseDetectorWithGrab(
             pose_model="yolo11m-pose.pt",
@@ -27,9 +23,16 @@ async def run_stream_worker(app):
     except Exception as e:
         print(f"❌ Failed to initialize detector: {e}")
         return
-
-    # === Connect to RTSP ===
-    rtsp_url =  "rtsp://10.98.169.25/live/ch00_0"
+    
+    db = SessionLocal()
+    camera = get_all_cameras(db, id=camera_id)
+    if not camera:
+        print(f"❌ Camera with id {camera_id} not found")
+        return
+    else:
+        camera = camera[0]
+    
+    rtsp_url = camera.rtsp_url
     threaded_capture = ThreadedRTSPCapture(rtsp_url=rtsp_url, buffer_size=1, name="ShopliftingCam")
 
     try:
@@ -43,11 +46,8 @@ async def run_stream_worker(app):
         print(f"❌ Failed to start capture: {e}")
         return
 
-    print(f"🎥 RTSP connected at {rtsp_url}")
     detector.fps = 25
-    total_alerts = 0
     frame_times = deque(maxlen=30)
-    db = SessionLocal() 
     async with aiohttp.ClientSession() as session:
         try:
             while not app.state.stop_stream_flag:
@@ -63,18 +63,13 @@ async def run_stream_worker(app):
 
                 frame = cv2.resize(frame, (1280, 720))
                 processed, alerts = detector.process_frame(frame)
-
-                # === If detection found, trigger alert ===
-                if alerts:
-                    print(alerts)
-                    total_alerts += len(alerts)
-
-                    for alert in alerts:
-                        # ✅ Broadcast to websocket
-                        await manager.broadcast(alert)
-                        print("   🚨 Alert broadcasted via WebSocket")
-                        # save to database
-                        await alert_repository.insert_alert(db, alert)
+                for alert in alerts:
+                    alert['camera_id'] = camera_id
+                    alert['store_id'] = camera.store_id
+                    alert['is_valid'] = None
+                    await manager.broadcast(alert)
+                    print(f"🚨 Alert detected: {alert}")
+                    insert_alert(db, alert)
 
                 # Maintain FPS tracking
                 frame_times.append(time.time() - t_start)
