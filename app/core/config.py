@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
+import os
 
 
 class Settings(BaseSettings):
@@ -28,6 +29,19 @@ class Settings(BaseSettings):
     SECRET_KEY: str = Field("defaultsecret")
     ALGORITHM: str = Field("HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(30)
+
+    # APN
+    APN_KEY_PATH: str = os.getenv("APN_KEY_PATH")
+    APN_KEY_ID: str = os.getenv("APN_KEY_ID")
+    APN_TEAM_ID: str = os.getenv("APN_TEAM_ID")
+    APN_BUNDLE_ID: str = os.getenv("APN_BUNDLE_ID")
+    APN_USE_SANDBOX: bool = os.getenv("APN_USE_SANDBOX", "True").lower() == "true"
+
+    # SUPABASE
+    SUPABASE_URL: str = os.getenv("SUPABASE_URL")
+    SUPABASE_KEY: str = os.getenv("SUPABASE_KEY")
+    SUPABASE_BUCKET: str = os.getenv("SUPABASE_BUCKET", "alert_clips")
+
 
     # 👇 this replaces your old `class Config`
     model_config = SettingsConfigDict(

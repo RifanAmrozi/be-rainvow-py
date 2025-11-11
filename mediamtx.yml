@@ -1,8 +1,8 @@
 paths:
   cctv-medan:
+    rtspTransport: tcp
     source: https://atcsdishub.medan.go.id/stream/L2AHMADYANIPULAUPINANG/stream.m3u8
     sourceOnDemand: true
-    rtspTransport: tcp
   xample001:
     source: rtsp://170.93.143.139/rtplive/470011e600ef003a004ee33696235daa
     sourceOnDemand: true

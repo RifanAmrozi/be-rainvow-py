@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 from app.db.session import get_db
-from app.model.alert_schema import AlertCreate, AlertResponse
+from app.model.alert_schema import AlertCreate, AlertResponse, AlertUpdate
 from app.repository import alert_repository
 from typing import Optional
 
@@ -23,7 +23,7 @@ def create_alert(alert: AlertCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Failed to insert alert: {e}")
     
 @router.put("/{alert_id}", response_model=AlertResponse)
-def update_alert(alert_id: str, alert: AlertCreate, db: Session = Depends(get_db)):
+def update_alert(alert_id: str, alert: AlertUpdate, db: Session = Depends(get_db)):
     """Update an existing alert record."""
     existing_alert = alert_repository.get_alert_by_id(db, alert_id)
     if not existing_alert:

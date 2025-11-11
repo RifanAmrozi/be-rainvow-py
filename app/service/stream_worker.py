@@ -2,17 +2,20 @@ import asyncio
 import time
 import cv2
 import numpy as np
+from app.service.notification.apn_service import send_apn_notification
 from collections import deque
 from app.websocket.websocket_router import manager
 from app.service.detection import ShopliftingPoseDetectorWithGrab
 from app.service.detection import ThreadedRTSPCapture
-from app.repository import alert_repository
-from app.db.session import get_db, SessionLocal
+from app.service.storage import upload_video_to_supabase, get_video_public_url
+from app.repository.user import get_devices
+from app.db.session import SessionLocal
 from app.repository.camera import get_all_cameras
 from app.repository.alert_repository import insert_alert
-from app.core.config import settings
 import aiohttp
-
+import os
+from uuid import UUID
+from pathlib import Path
 
 async def run_stream_worker(app, camera_id: str):
     try:
@@ -67,8 +70,27 @@ async def run_stream_worker(app, camera_id: str):
                     alert['camera_id'] = camera_id
                     alert['store_id'] = camera.store_id
                     alert['is_valid'] = None
-                    await manager.broadcast(alert)
+                    # Upload video clip to Supabase
+                    # video_filename = "shoplifting_track48_20251111_100057"+ ".mp4"
+                    # base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                    # video_path = os.path.join(base_dir, "alert_clips", video_filename)
+                    # print("Exists:", video_path.exists())
+                    # if not video_path.exists():
+                    #     video_path='/Users/rifanamrozi/Documents/ada/be-rainvow-py/alert_clips/shoplifting_track48_20251111_100057.mp4'
+                    # if video_path:
+                    #     upload_res = upload_video_to_supabase(video_path)
+                    #     print(f"Upload response: {upload_res}")
+                    #     public_url = get_video_public_url(video_filename)
+                    #     print(f"Public stream URL: {public_url}")
+                    #     alert['video_url'] = public_url
+
+                    # await manager.broadcast(alert)
                     print(f"🚨 Alert detected: {alert}")
+                    devices = get_devices(db, user_id=None, store_id=camera.store_id)
+                    for device in devices:
+                        alertAPN = {k: str(v) if isinstance(v, UUID) else v for k, v in alert.items()}
+
+                        send_apn_notification(device.device_token, alertAPN)
                     insert_alert(db, alert)
 
                 # Maintain FPS tracking
@@ -79,6 +101,7 @@ async def run_stream_worker(app, camera_id: str):
         except asyncio.CancelledError:
             print("🛑 Detection worker cancelled")
         finally:
+            print("🛑 Stopping detection worker...")
             threaded_capture.stop()
             cv2.destroyAllWindows()
-            print(f"✅ Detection worker stopped. Total alerts: {total_alerts}")
+            print(f"✅ Detection worker stopped. Total alerts:")

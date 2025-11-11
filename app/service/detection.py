@@ -13,6 +13,7 @@ from enum import Enum
 import random
 import uuid
 from app.core.config import settings
+import asyncio
 
 
 class DetectionPhase(Enum):
@@ -2561,7 +2562,22 @@ class ShopliftingPoseDetectorWithGrab:
             return frame, y_offset_poses
     
     def process_frame(self, frame):
-        """Process frame dengan zone visualization + natural position indicator"""
+        # TODO: comment Testing purpose: after 15 seconds sleep, send fake alert
+        # start_time = time.time()
+        # while time.time() - start_time < 15:
+        #     asyncio.sleep(0.1)
+        
+        # alert_payload = {
+        #     "id": str(uuid.uuid4()),
+        #     "title": "Shoplifting Alert",
+        #     "incident_start": datetime.utcnow().isoformat(),
+        #     "is_valid": None,
+        #     "video_url": "shoplifting_track1_20251111_081155.mp4",
+        #     "notes": "   Reasons: Testing purpose"
+        # }
+
+        # return "processed", [alert_payload]
+    
         self.frame_count += 1
         
         results = self.pose_model.track(
@@ -2802,7 +2818,7 @@ class ShopliftingPoseDetectorWithGrab:
                             "incident_start": datetime.utcnow().isoformat(),
                             "is_valid": None,
                             "video_url": clip_name,
-                            "notes": None
+                            "notes": f"   Reasons: {reasons}"
                         }
 
                         return "processed", [alert_payload]

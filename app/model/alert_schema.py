@@ -23,3 +23,8 @@ class AlertResponse(AlertCreate):
 
     class Config:
         orm_mode = True
+
+class AlertUpdate(BaseModel):
+    title: Optional[str] = None
+    is_valid: Optional[bool] = None
+    notes: Optional[str] = None

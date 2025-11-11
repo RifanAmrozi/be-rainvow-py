@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.db.session import get_db
-from app.repository.user import create_user, get_user_by_name
+from app.repository.user import create_user, get_user_by_name, register_device_token
 from app.model.user_schema import UserCreate, UserResponse, UserLogin
+from app.model.device_schema import DeviceCreate
 from app.auth.utils import verify_password, create_access_token
 
 router = APIRouter(prefix="/user", tags=["User"])
@@ -38,3 +39,10 @@ def get_user_by_id(id: str, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
+
+
+@router.post("/device")
+def register_device(device: DeviceCreate, db: Session = Depends(get_db)):
+    print("Registering device token:", device)
+    register_device_token(db, device)
+    return {"message": "Device registered"}
