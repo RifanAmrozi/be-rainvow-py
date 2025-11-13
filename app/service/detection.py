@@ -10,11 +10,6 @@ import json
 import os
 from datetime import datetime
 from enum import Enum
-import random
-import uuid
-from app.core.config import settings
-import asyncio
-
 
 class DetectionPhase(Enum):
     """Fase deteksi shoplifting"""
@@ -110,24 +105,6 @@ class PocketZone:
             depth = (x2 - x) / (x2 - x1) if (x2 - x1) > 0 else 0
         
         return depth
-
-# def configure_rtsp_environment():
-#     """
-#     Set environment variables untuk optimasi RTSP
-#     Panggil fungsi ini SEBELUM membuat VideoCapture
-#     """
-    
-#     # ✅ FORMAT YANG BENAR untuk OpenCV FFMPEG options
-#     # Syntax: "option_name1;option_value1;option_name2;option_value2"
-#     os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;udp;fflags;nobuffer;flags;low_delay"
-    
-#     # Atau lebih sederhana, hanya set transport:
-#     # os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;udp"
-    
-#     os.environ["OPENCV_FFMPEG_READ_ATTEMPTS"] = "5"
-#     os.environ["OMP_NUM_THREADS"] = "4"
-    
-#     print("✅ RTSP environment configured for low latency") 
 
 class ThreadedRTSPCapture:
     """
@@ -279,7 +256,7 @@ class ShopliftingPoseDetectorWithGrab:
         
         self.frame_count = 0
         self.debug_mode = debug_mode
-        
+        self.inference_size = 416
         
         self.KEYPOINTS = {
             'nose': 0, 'left_eye': 1, 'right_eye': 2, 'left_ear': 3, 'right_ear': 4,
@@ -1111,13 +1088,7 @@ class ShopliftingPoseDetectorWithGrab:
 
     def detect_suspicious_poses(self, keypoints, grabbed_hand=None, is_rotating=False):
         """
-        FASE 3: Deteksi pose mencurigakan - FIXED VERSION
-        ✅ PERBAIKAN:
-        1. Filter straight_down hanya untuk ZONE detection
-        2. Bending threshold dinaikkan (0.55 → 0.70)
-        3. Squatting threshold dilonggarkan (95° → 115°)
-        4. Hiding clothing - single-hand detection
-        5. Waist back - threshold dilonggarkan
+        FASE 3: Deteksi pose mencurigakan
         """
         suspicious_poses = []
 
@@ -1391,9 +1362,7 @@ class ShopliftingPoseDetectorWithGrab:
                                     "Menyembunyikan di pinggang (KANAN)"
                                 ))
         
-        # ========================================================================
         # 6. REACHING WAIST BACK 
-        # ========================================================================
         if grabbed_hand == 'left' or grabbed_hand is None:
             if all([left_shoulder, left_hip, left_wrist, left_elbow]):
                 wrist_to_hip = self.distance(left_wrist, left_hip)
@@ -1601,26 +1570,10 @@ class ShopliftingPoseDetectorWithGrab:
                 self.initialize_pocket_zones(track_id, keypoints)
             
             # ✅ STEP 1: Deteksi rotasi DULU sebelum apapun
-            is_rotating, rotation_deg, rotation_conf = self.detect_body_rotation(keypoints, track_id)
+            is_rotating = False 
+            rotation_conf = 0.0
             
-            # ✅ STEP 2: Jika sedang rotate, FREEZE semua deteksi
-            if is_rotating and track['is_rotating']:
-                track['last_normal_frame'] = current_frame
-                track['suspicious_frame_count'] = 0  
-                
-                if self.debug_mode:
-                    print(f"🔄 Track {track_id}: ROTATING - All detection PAUSED (rotation_frames: {track['rotation_frames']})")
-                
-                # Timeout check
-                frames_since_grab = current_frame - track['grab_frame']
-                if frames_since_grab >= self.SUSPICIOUS_VALIDATION['timeout_normal_behavior'] * 1.5:
-                    track['phase'] = DetectionPhase.IDLE
-                    self.reset_track(track_id)
-                    
-                    if self.debug_mode:
-                        print(f"⚪ Track {track_id}: GRABBING -> IDLE (Rotation timeout)")
-                
-                return False, [], []  
+  
             
             # ✅ STEP 3: CEK POSISI NATURAL (TANGAN LURUS KEBAWAH)
             grabbed_hand = track['grabbed_hand']
@@ -2163,7 +2116,7 @@ class ShopliftingPoseDetectorWithGrab:
         
         return False, []
     
-    def save_alert_clip(self, track_id, alert_info, current_frame):
+    def save_alert_clip(self, track_id, alert_info, current_frame, bbox=None):
         """Save video clip: 5s sebelum + 5s setelah DENGAN VISUAL"""
         try:
             clips_dir = "alert_clips"
@@ -2192,7 +2145,8 @@ class ShopliftingPoseDetectorWithGrab:
                 'frames_needed': frames_after,
                 'alert_info': alert_info,
                 'base_filename': base_filename,
-                'alert_frame_index': len(frames_pre_alert)  
+                'alert_frame_index': len(frames_pre_alert),
+                'bbox': bbox  
             }
             
             return base_filename
@@ -2200,9 +2154,106 @@ class ShopliftingPoseDetectorWithGrab:
         except Exception as e:
             print(f"❌ Error preparing alert clip: {e}")
             return None
+
+    def crop_person_bbox(self, frame, bbox, padding=20):
+            """
+            Crop person PERSEGI (1:1) - Fokus pada SETENGAH BADAN ATAS + WAJAH
+            Args:
+                frame: input frame
+                bbox: (x1, y1, x2, y2) bounding box
+                padding: pixel padding di sekitar bbox
+            Returns:
+                cropped image (square), crop coordinates
+            """
+            try:
+                x1, y1, x2, y2 = map(int, bbox)
+                h, w = frame.shape[:2]
+                
+                # Hitung center dan ukuran bbox asli
+                bbox_width = x2 - x1
+                bbox_height = y2 - y1
+                center_x = (x1 + x2) // 2
+                
+                # Target: SETENGAH BADAN ATAS (dari kepala sampai pinggang)
+                # Y1 tetap dari atas (kepala), Y2 di tengah badan
+                y_top = y1
+                y_bottom = y1 + int(bbox_height * 0.55)  # 55% dari tinggi total = setengah badan atas
+                
+                # Hitung tinggi crop area
+                crop_height = y_bottom - y_top + (2 * padding)
+                
+                # BUAT PERSEGI: lebar = tinggi
+                square_size = crop_height
+                
+                # Tentukan koordinat persegi dengan center_x sebagai pusat horizontal
+                x1_crop = center_x - (square_size // 2)
+                x2_crop = center_x + (square_size // 2)
+                y1_crop = y_top - padding
+                y2_crop = y_top + square_size - padding
+                
+                # Pastikan tidak keluar dari frame
+                x1_crop = max(0, x1_crop)
+                y1_crop = max(0, y1_crop)
+                x2_crop = min(w, x2_crop)
+                y2_crop = min(h, y2_crop)
+                
+                # Crop
+                cropped = frame[y1_crop:y2_crop, x1_crop:x2_crop].copy()
+                
+                # Validasi bentuk persegi - jika tidak persegi, resize ke persegi
+                crop_h, crop_w = cropped.shape[:2]
+                if crop_h != crop_w:
+                    # Buat canvas persegi dengan ukuran max dimension
+                    target_size = max(crop_h, crop_w)
+                    square_canvas = np.zeros((target_size, target_size, 3), dtype=np.uint8)
+                    
+                    # Paste cropped image di tengah canvas
+                    y_offset = (target_size - crop_h) // 2
+                    x_offset = (target_size - crop_w) // 2
+                    square_canvas[y_offset:y_offset+crop_h, x_offset:x_offset+crop_w] = cropped
+                    
+                    cropped = square_canvas
+                
+                return cropped, (x1_crop, y1_crop, x2_crop, y2_crop)
+            
+            except Exception as e:
+                print(f"❌ Error cropping person: {e}")
+                return None, None
     
+    def _clean_alert_info_for_json(self, alert_info):
+        """
+        Clean alert_info untuk JSON serialization
+        Convert Enum keys dan numpy types menjadi native Python types
+        """
+        import numpy as np
+        
+        def convert_value(val):
+            """Recursively convert numpy types to native Python types"""
+            if isinstance(val, (np.integer, np.int32, np.int64)):
+                return int(val)
+            elif isinstance(val, (np.floating, np.float32, np.float64)):
+                return float(val)
+            elif isinstance(val, np.ndarray):
+                return val.tolist()
+            elif isinstance(val, dict):
+                return {convert_value(k): convert_value(v) for k, v in val.items()}
+            elif isinstance(val, list):
+                return [convert_value(item) for item in val]
+            elif isinstance(val, tuple):
+                return tuple(convert_value(item) for item in val)
+            elif hasattr(val, 'value'):  # Enum
+                return val.value
+            else:
+                return val
+        
+        cleaned = {}
+        for key, value in alert_info.items():
+            cleaned[convert_value(key)] = convert_value(value)
+        
+        return cleaned
+
     def finalize_alert_clip(self, track_id):
-        """Finalize dan save clip DENGAN VISUAL MARKER"""
+        """Finalize dan save clip DENGAN VISUAL MARKER + CROPPED IMAGES"""
         if track_id not in self.recording_alerts:
             return None
         
@@ -2210,104 +2261,136 @@ class ShopliftingPoseDetectorWithGrab:
             recording = self.recording_alerts[track_id]
             base_filename = recording['base_filename']
             alert_frame_idx = recording.get('alert_frame_index', 0)
+            bbox = recording.get('bbox', None)
             
             all_frames = recording['frames_before'] + recording['frames_after']
             
-            if len(all_frames) < 30:
-                print(f"⚠️ Not enough frames for Track {track_id}")
-                del self.recording_alerts[track_id]
-                return None
+            if len(all_frames) < 10: 
+                print(f"⚠️ Only {len(all_frames)} frames for Track {track_id}, still saving...")
             
             clips_dir = "alert_clips"
             video_filename = os.path.join(clips_dir, f"{base_filename}.mp4")
             
+            crop_dir = os.path.join(clips_dir, f"{base_filename}_crops")
+            os.makedirs(crop_dir, exist_ok=True)
+            
             first_frame = all_frames[0]
             height, width = first_frame.shape[:2]
             
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            out = cv2.VideoWriter(video_filename, fourcc, self.fps, (width, height))
+            codecs_to_try = [
+                ('avc1', '.mp4'),
+                ('mp4v', '.mp4'), 
+                ('XVID', '.avi'),  
+            ]
             
-            if not out.isOpened():
-                print(f"❌ Cannot open video writer for Track {track_id}")
+            out = None
+            actual_filename = None
+            
+            for codec_str, ext in codecs_to_try:
+                try:
+                    fourcc = cv2.VideoWriter_fourcc(*codec_str)
+                    test_filename = video_filename.replace('.mp4', ext)
+                    out = cv2.VideoWriter(test_filename, fourcc, self.fps, (width, height))
+                    
+                    if out.isOpened():
+                        actual_filename = test_filename
+                        print(f"✅ Using codec: {codec_str} ({ext})")
+                        break
+                    else:
+                        out.release()
+                        out = None
+                except Exception as e:
+                    print(f"⚠️ Codec {codec_str} failed: {e}")
+                    continue
+            
+            if out is None or not out.isOpened():
+                print(f"❌ Cannot open video writer for Track {track_id} - All codecs failed")
                 del self.recording_alerts[track_id]
                 return None
+
+            video_filename = actual_filename
             
+            crop_count = 0
+            # crop_interval = 5
+            
+            if bbox is not None:
+                print(f"📍 Bbox for Track {track_id}: {bbox}")
+            else:
+                print(f"⚠️ WARNING: Bbox is None for Track {track_id}!")
+            
+            crop_count = 0
+
             for idx, frame in enumerate(all_frames):
                 frame_copy = frame.copy()
                 
-                if idx == alert_frame_idx:
-                    cv2.rectangle(frame_copy, (0, 0), (width-1, height-1), (0, 0, 255), 15)
-                    
-                    alert_text = "!!! ALERT TRIGGERED !!!"
-                    text_size = cv2.getTextSize(alert_text, cv2.FONT_HERSHEY_SIMPLEX, 1.5, 4)[0]
-                    text_x = (width - text_size[0]) // 2
-                    text_y = 80
-                    
-                    cv2.rectangle(frame_copy, 
-                                (text_x - 20, text_y - 50), 
-                                (text_x + text_size[0] + 20, text_y + 10), 
-                                (0, 0, 0), -1)
-                    
-                    cv2.putText(frame_copy, alert_text, (text_x, text_y),
-                            cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 4)
-                
-                frame_label = f"Frame: {idx+1}/{len(all_frames)}"
-                if idx < alert_frame_idx:
-                    frame_status = "PRE-ALERT"
-                    status_color = (0, 255, 255)  
-                elif idx == alert_frame_idx:
-                    frame_status = "ALERT!"
-                    status_color = (0, 0, 255)  
+                # SAVE CROPPED IMAGE 
+                if bbox is not None and len(bbox) == 4:
+                    if idx == alert_frame_idx: 
+                        try:
+                            cropped, crop_coords = self.crop_person_bbox(frame, bbox, padding=30)
+                            
+                            if cropped is not None and cropped.size > 0:
+                                alert_crop_filename = os.path.join(crop_dir, f"ALERT_crop.jpg")
+                                success = cv2.imwrite(alert_crop_filename, cropped)
+                                
+                                if success:
+                                    crop_count = 1
+                                    print(f"  ✅ Saved ALERT crop: {alert_crop_filename}")
+                                else:
+                                    print(f"  ❌ Failed to save crop: {alert_crop_filename}")
+                        except Exception as e:
+                            print(f"  ❌ Error cropping alert frame: {e}")
                 else:
-                    frame_status = "POST-ALERT"
-                    status_color = (255, 165, 0)  
-                
-                info_text = f"{frame_label} | {frame_status}"
-                text_size = cv2.getTextSize(info_text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)[0]
-                cv2.rectangle(frame_copy,
-                            (width - text_size[0] - 20, height - 40),
-                            (width - 5, height - 5),
-                            (0, 0, 0), -1)
-                
-                cv2.putText(frame_copy, info_text,
-                        (width - text_size[0] - 10, height - 15),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, status_color, 2)
+                    if idx == alert_frame_idx:
+                        print(f"  ⚠️ Cannot crop - bbox is invalid: {bbox}")
                 
                 out.write(frame_copy)
             
+            # Release video writer PROPERLY
             out.release()
+            cv2.waitKey(1)  
             
+            # Update JSON dengan info lengkap
             json_filename = os.path.join(clips_dir, f"{base_filename}.json")
-            
+
+            # Clean alert_info untuk JSON
             alert_info = recording['alert_info']
+            cleaned_alert_info = self._clean_alert_info_for_json(alert_info)
             pose_descriptions = self._generate_pose_descriptions(alert_info)
             
             clip_info = {
-                'alert_info': alert_info,
+                'alert_info': cleaned_alert_info,
                 'clip_info': {
-                    'video_file': f"{base_filename}.mp4",
+                    'video_file': os.path.basename(video_filename),
                     'total_frames': len(all_frames),
                     'pre_alert_frames': len(recording['frames_before']),
                     'post_alert_frames': len(recording['frames_after']),
-                    'alert_frame_index': alert_frame_idx, 
+                    'alert_frame_index': alert_frame_idx,
                     'duration_seconds': len(all_frames) / self.fps,
                     'fps': self.fps,
                     'resolution': f"{width}x{height}",
                     'created_at': datetime.now().isoformat(),
-                    'visual_markers': True 
+                    'visual_markers': True,
+                    'cropped_images': {
+                        'folder': f"{base_filename}_crops",
+                        'total_crops': crop_count,
+                        'alert_crop': 'ALERT_crop.jpg' if crop_count == 1 else 'N/A',  
+                        'alert_frame_only': True,  
+                        'bbox': [float(x) for x in bbox] if bbox is not None else 'N/A'
+                    }
                 },
                 'detection_summary': {
-                    'track_id': track_id,
-                    'phase_sequence': alert_info.get('phase', 'unknown'),
-                    'grab_frame': alert_info.get('grab_frame', 0),
-                    'alert_frame': alert_info.get('frame', 0),
-                    'grabbed_hand': alert_info.get('grabbed_hand', 'unknown'),
-                    'suspicion_score': alert_info.get('suspicion_score', 0),
-                    'suspicious_ratio': alert_info.get('suspicious_ratio', 0),
-                    'reasons': alert_info.get('reasons', []),
-                    'pose_counts': alert_info.get('pose_counts', {}),
-                    'zone_penetration': alert_info.get('zone_penetration_detected', False),
-                    'zone_penetration_zones': alert_info.get('zone_penetration_zones', [])
+                    'track_id': int(track_id),  
+                    'phase_sequence': str(cleaned_alert_info.get('phase', 'unknown')),
+                    'grab_frame': int(cleaned_alert_info.get('grab_frame', 0)),
+                    'alert_frame': int(cleaned_alert_info.get('frame', 0)),
+                    'grabbed_hand': str(cleaned_alert_info.get('grabbed_hand', 'unknown')),
+                    'suspicion_score': float(cleaned_alert_info.get('suspicion_score', 0)),
+                    'suspicious_ratio': float(cleaned_alert_info.get('suspicious_ratio', 0)),
+                    'reasons': cleaned_alert_info.get('reasons', []),
+                    'pose_counts': cleaned_alert_info.get('pose_counts', {}),
+                    'zone_penetration': cleaned_alert_info.get('zone_penetration_detected', False),
+                    'zone_penetration_zones': cleaned_alert_info.get('zone_penetration_zones', [])
                 },
                 'behavior_analysis': {
                     'description': pose_descriptions['full_description'],
@@ -2322,11 +2405,15 @@ class ShopliftingPoseDetectorWithGrab:
             with open(json_filename, 'w') as f:
                 json.dump(clip_info, f, indent=2)
             
-            if os.path.exists(video_filename) and os.path.exists(json_filename):
+            video_exists = os.path.exists(video_filename) and os.path.getsize(video_filename) > 0
+            json_exists = os.path.exists(json_filename)
+            
+            if video_exists and json_exists:
                 self.alert_clips_saved.append(base_filename)
-                print(f"✅ Alert clip saved:")
-                print(f"   📹 Video: {video_filename}")
+                print(f"✅ Alert clip saved successfully:")
+                print(f"   📹 Video: {video_filename} ({os.path.getsize(video_filename)/1024:.1f} KB)")
                 print(f"   📄 JSON:  {json_filename}")
+                print(f"   🖼️  Crops: {crop_count} images in {crop_dir}")
                 print(f"   ⏱️  Duration: {len(all_frames) / self.fps:.1f}s ({len(all_frames)} frames)")
                 print(f"   🎯 Alert at frame: {alert_frame_idx + 1}/{len(all_frames)}")
                 print(f"   📝 Behavior: {pose_descriptions['full_description']}")
@@ -2335,9 +2422,11 @@ class ShopliftingPoseDetectorWithGrab:
                 return base_filename
             else:
                 print(f"❌ Failed to save files for Track {track_id}")
+                print(f"   Video exists: {video_exists} ({video_filename})")
+                print(f"   JSON exists: {json_exists} ({json_filename})")
                 del self.recording_alerts[track_id]
                 return None
-            
+                
         except Exception as e:
             print(f"❌ Error finalizing clip for Track {track_id}: {e}")
             import traceback
@@ -2487,10 +2576,9 @@ class ShopliftingPoseDetectorWithGrab:
             'detailed_breakdown': detailed_breakdown
         }
     
-    def update_recording_alerts(self, processed_frame):
+    def update_recording_alerts(self, original_frame):  
         """
-        Update semua recording alerts dengan PROCESSED frame (sudah ada visual)
-        ✅ PERUBAHAN: Parameter dari 'frame' menjadi 'processed_frame'
+        Update semua recording alerts dengan ORIGINAL frame (clean, no visual)
         """
         to_finalize = []
         
@@ -2499,7 +2587,7 @@ class ShopliftingPoseDetectorWithGrab:
             frames_needed = recording['frames_needed']
             
             if len(frames_after) < frames_needed:
-                recording['frames_after'].append(processed_frame.copy())
+                recording['frames_after'].append(original_frame.copy()) 
                 
                 if len(frames_after) >= frames_needed:
                     to_finalize.append(track_id)
@@ -2517,7 +2605,7 @@ class ShopliftingPoseDetectorWithGrab:
             
             y_offset_poses = y1 - 15
             
-            # Sort by confidence (tertinggi dulu)
+            # Sort by confidence 
             sorted_poses = sorted(suspicious_poses, key=lambda p: p[1], reverse=True)[:3]
             
             for pose_type, conf, desc in sorted_poses:
@@ -2562,29 +2650,15 @@ class ShopliftingPoseDetectorWithGrab:
             return frame, y_offset_poses
     
     def process_frame(self, frame):
-        # TODO: comment Testing purpose: after 15 seconds sleep, send fake alert
-        # start_time = time.time()
-        # while time.time() - start_time < 15:
-        #     asyncio.sleep(0.1)
-        
-        # alert_payload = {
-        #     "id": str(uuid.uuid4()),
-        #     "title": "Shoplifting Alert",
-        #     "incident_start": datetime.utcnow().isoformat(),
-        #     "is_valid": None,
-        #     "video_url": "shoplifting_track1_20251111_081155.mp4",
-        #     "notes": "   Reasons: Testing purpose"
-        # }
-
-        # return "processed", [alert_payload]
-    
+        """Process frame dengan zone visualization + natural position indicator"""
         self.frame_count += 1
         
         results = self.pose_model.track(
             frame,
             persist=True,
             verbose=False,
-            imgsz=640
+            imgsz=self.inference_size,
+            device='cpu'
         )
         
         alert_persons = []
@@ -2610,7 +2684,7 @@ class ShopliftingPoseDetectorWithGrab:
                     track_id, keypoints, self.frame_count
                 )
 
-                # OVERLAY untuk high confidence suspicious poses (belum alert)
+                # OVERLAY untuk high confidence suspicious poses 
                 if suspicious_poses and not is_alert:
                     high_conf_poses = [p for p in suspicious_poses if p[1] >= 0.75]
                     if high_conf_poses:
@@ -2765,7 +2839,7 @@ class ShopliftingPoseDetectorWithGrab:
                             cv2.putText(processed, label, (x1z + 2, y1z - 5),
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
                 
-                # ✅ VISUALISASI BODY ROTATION
+                # VISUALISASI BODY ROTATION
                 if track['is_rotating'] and track['rotation_frames'] > 3:
                     # Draw overlay transparan ORANGE
                     overlay = processed.copy()
@@ -2801,7 +2875,7 @@ class ShopliftingPoseDetectorWithGrab:
                     
                     alert_persons.append(track_id)
                     
-                    clip_name = self.save_alert_clip(track_id, alert_info, self.frame_count)
+                    clip_name = self.save_alert_clip(track_id, alert_info, self.frame_count, bbox=box)
                     
                     if self.debug_mode:
                         print(f"\n🚨 SHOPLIFTING ALERT: Track {track_id}")
@@ -2810,18 +2884,6 @@ class ShopliftingPoseDetectorWithGrab:
                         print(f"   Reasons: {reasons}")
                         if clip_name:
                             print(f"   Clip: {clip_name}")
-
-                        # TODO: use real data
-                        alert_payload = {
-                            "id": str(uuid.uuid4()),
-                            "title": "Shoplifting Alert",
-                            "incident_start": datetime.utcnow().isoformat(),
-                            "is_valid": None,
-                            "video_url": clip_name,
-                            "notes": f"   Reasons: {reasons}"
-                        }
-
-                        return "processed", [alert_payload]
                     
                     # Draw RED bounding box untuk alert
                     cv2.rectangle(processed, (x1, y1), (x2, y2), (0, 0, 255), 5)
@@ -2941,14 +3003,19 @@ class ShopliftingPoseDetectorWithGrab:
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
         
         # SAVE TO BUFFER & UPDATE RECORDINGS
-        self.frame_buffer.append(processed.copy())
-        self.update_recording_alerts(processed)
+        self.frame_buffer.append(frame.copy())
+        self.update_recording_alerts(frame)
         
         return processed, alert_persons
     
     def save_session_log(self):
         """Save detection log"""
         if self.alert_log:
+            cleaned_alerts = []
+            for alert in self.alert_log:
+                cleaned_alert = self._clean_alert_info_for_json(alert)  
+                cleaned_alerts.append(cleaned_alert)
+            
             log_data = {
                 'session_info': {
                     'start_time': self.session_start.isoformat(),
@@ -2960,7 +3027,7 @@ class ShopliftingPoseDetectorWithGrab:
                     'suspicious_thresholds': self.SUSPICIOUS_THRESHOLDS,
                     'zone_thresholds': self.ZONE_THRESHOLDS
                 },
-                'alerts': self.alert_log
+                'alerts': cleaned_alerts  
             }
             
             filename = f"shoplifting_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
@@ -2972,41 +3039,131 @@ class ShopliftingPoseDetectorWithGrab:
 
 
 def main():
-    debug = 'y'
+    
+    print("=" * 80)
+    print("SHOPLIFTING DETECTION WITH GRABBING PHASE + POCKET ZONES v6+")
+    print("5-PHASE DETECTION: REACHING -> GRABBING -> ZONE PENETRATION -> SUSPICIOUS -> ALERT")
+    print("=" * 80)
+    print("\n📋 DETECTION PHASES:")
+    print("  1. IDLE           - Normal behavior")
+    print("  2. REACHING SHELF - Tangan meraih")
+    print("  3. GRABBING       - Hand closing/menggenggam")
+    print("  4. SUSPICIOUS     - Gerakan mencurigakan setelah grab:")
+    print("                      • Zone penetration (kantong celana/jaket)")
+    print("                      • Memasukkan ke baju")
+    print("                      • Membungkuk/jongkok")
+    print("                      • Menyembunyikan di topi/kepala")
+    print("                      • Pose mencurigakan lain")
+    print("  5. ALERT          - Alert triggered!")
+    print("\n NEW FEATURES:")
+    print("  • POCKET ZONE DETECTION - Dynamic zones for pants & jacket pockets")
+    print("  • Multi-level penetration tracking - Depth measurement (0-1)")
+    print("  • Automatic zone initialization - Based on body keypoints")
+    print("  • Zone-based alert - Instant suspicious on high depth penetration")
+    print("  • Visual zone overlay - Real-time zone visualization")
+    print("\n ZONE CONFIGURATION:")
+    print("  • Pants pockets (left/right) - Bottom area, 30% body width")
+    print("  • Jacket pockets (left/right) - Mid-body, 25% body width")
+    print("  • Dynamic sizing - Adapts to person height/width")
+    print("  • Penetration depth - 0.3+ triggers medium, 0.6+ triggers high severity")
+    print("=" * 80)
+
+    print("\n🚀 FPS OPTIMIZATION MODE:")
+    print("1. MAX SPEED    (70-90 FPS)  - nano model, 640x480, skip 2 frames")
+    print("2. BALANCED     (45-60 FPS)  - nano model, 960x540, skip 1 frame")
+    print("3. QUALITY      (30-40 FPS)  - small model, 960x540, no skip")
+    print("4. MAX QUALITY  (20-30 FPS)  - medium model, 1280x720, no skip")
+    
+    fps_mode = input("Choose mode (1-4) [2]: ").strip() or "2"
+    
+    if fps_mode == "1":
+        model_name = "yolo11n-pose.pt"
+        frame_resolution = (640, 480)
+        inference_size = 320
+        skip_frames = 2
+        debug_default = False
+    elif fps_mode == "3":
+        model_name = "yolo11s-pose.pt"
+        frame_resolution = (960, 540)
+        inference_size = 416
+        skip_frames = 1
+        debug_default = False
+    elif fps_mode == "4":
+        model_name = "yolo11m-pose.pt"
+        frame_resolution = (1280, 720)
+        inference_size = 640
+        skip_frames = 1
+        debug_default = True
+    else:  
+        model_name = "yolo11n-pose.pt"
+        frame_resolution = (960, 540)
+        inference_size = 416
+        skip_frames = 1
+        debug_default = False
+    
+    print(f"\n✅ Selected: {model_name}, {frame_resolution}, skip={skip_frames}")
+    print("=" * 80)
+    
+    debug = input("\nDebug mode? (y/n) [n]: ").lower() == 'y'
+    
     threaded_capture = None
     cap = None
-    rtsp_url = 'rtsp://170.93.143.139/rtplive/470011e600ef003a004ee33696235daa'
     
     try:
         detector = ShopliftingPoseDetectorWithGrab(
-            pose_model="yolo11m-pose.pt",
+            pose_model=model_name,
             debug_mode=debug
         )
+        detector.process_every_n_frames = skip_frames
+        detector.inference_size = inference_size
     except Exception as e:
         print(f"\nInitialization failed: {e}")
         return
-   
     
-    threaded_capture = ThreadedRTSPCapture(
-        rtsp_url=rtsp_url,
-        buffer_size=1,
-        name="ShopliftingCam"
-    )
+    print("\nVideo source:")
+    print("1. Webcam")
+    print("2. Video file")
+    print("3. RTSP/IP Camera")
+    choice = input("Choose (1-3) [1]: ").strip() or "1"
     
-    try:
-        threaded_capture.start()
-        time.sleep(2)  
-        
-        stats = threaded_capture.get_stats()
-        if not stats['is_alive']:
-            print(f"❌ Cannot start RTSP capture")
+    if choice == "2":
+        path = input("Video path: ").strip()
+        if not os.path.exists(path):
+            print("File not found")
+            return
+        cap = cv2.VideoCapture(path)
+        source = f"Video: {os.path.basename(path)}"
+    elif choice == "3":
+        rtsp_url = input("RTSP URL: ").strip()
+        if not rtsp_url:
+            print("RTSP URL required")
             return
         
-        source = f"RTSP (Threaded): {rtsp_url}"
+        threaded_capture = ThreadedRTSPCapture(
+            rtsp_url=rtsp_url,
+            buffer_size=1,
+            name="ShopliftingCam"
+        )
         
-    except Exception as e:
-        print(f"❌ Failed to start capture: {e}")
-        return
+        try:
+            threaded_capture.start()
+            time.sleep(2)  
+            
+            stats = threaded_capture.get_stats()
+            if not stats['is_alive']:
+                print(f"❌ Cannot start RTSP capture")
+                return
+            
+            source = f"RTSP (Threaded): {rtsp_url}"
+            
+        except Exception as e:
+            print(f"❌ Failed to start capture: {e}")
+            return
+    else:
+        cap = cv2.VideoCapture(0)
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        source = "Webcam"
 
     if threaded_capture is None:
         if not cap.isOpened():
@@ -3053,7 +3210,7 @@ def main():
                 if not ret:
                     break
             
-            frame = cv2.resize(frame, (1280, 720))
+            frame = cv2.resize(frame, frame_resolution)
             
             processed, alerts = detector.process_frame(frame)
             
