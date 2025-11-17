@@ -9,6 +9,7 @@ class AlertCreate(BaseModel):
     incident_start: datetime
     is_valid: Optional[bool] = None
     video_url: Optional[str] = None
+    photo_url: Optional[str] = None
     notes: Optional[str] = None
     store_id: str
     camera_id: str

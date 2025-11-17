@@ -15,7 +15,8 @@ class Settings(BaseSettings):
     RTSP_DEFAULT_URL: str = Field("")
     RTSP_URL: str = "rtsp://10.63.47.25/live/ch00_0"
     API_URL: str = "http://172/20.10.6:8080/api/v1/save"
-    CAMERA_ID: str = "c9cb07a4-be1b-41ae-9aac-db1d8458e132"
+    CAMERA_ID: str = os.getenv("CAMERA_ID")
+    STORE_ID: str = os.getenv("STORE_ID")
 
     # App
     APP_HOST: str = Field("0.0.0.0")

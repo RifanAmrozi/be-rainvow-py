@@ -35,7 +35,7 @@ async def get_clip(filename: str):
 def startup_event():
     print("🚀 Starting server...")
     # comment this line to disable stream worker on startup
-    app.state.stream_worker_task = asyncio.create_task(run_stream_worker(app, settings.CAMERA_ID))
+    app.state.stream_worker_task = asyncio.create_task(run_stream_worker(app, settings.STORE_ID))
     app.state.stop_stream_flag = False
 
     test_connection()
@@ -57,7 +57,7 @@ async def start_stream():
         return {"status": "already running"}
 
     app.state.stop_stream_flag = False
-    app.state.stream_worker_task = asyncio.create_task(run_stream_worker(app, settings.CAMERA_ID))
+    app.state.stream_worker_task = asyncio.create_task(run_stream_worker(app, settings.STORE_ID))
     return {"status": "started"}
 
 
