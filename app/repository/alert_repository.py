@@ -46,7 +46,7 @@ def get_alert_by_id(db: Session, id: str):
     alert_dict["aisle_loc"] = aisle_loc
     return alert_dict
 
-def update_alert(db: Session, id: str, data: AlertUpdate):
+def update_alert(db: Session, id: str, data: AlertUpdate, updated_by: Optional[str] = None):
     alert = db.query(Alert).filter(Alert.id == id).first()
     if alert:
         if data.title is not None:
@@ -55,6 +55,8 @@ def update_alert(db: Session, id: str, data: AlertUpdate):
             alert.is_valid = data.is_valid
         if data.notes is not None:
             alert.notes = data.notes
+        if updated_by is not None:
+            alert.updated_by = updated_by
         db.commit()
         db.refresh(alert)
     return alert

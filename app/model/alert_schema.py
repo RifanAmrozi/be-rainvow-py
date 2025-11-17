@@ -13,6 +13,7 @@ class AlertCreate(BaseModel):
     notes: Optional[str] = None
     store_id: str
     camera_id: str
+    updated_by: Optional[str] = None
 
 
 class AlertResponse(AlertCreate):

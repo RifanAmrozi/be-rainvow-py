@@ -9,6 +9,7 @@ from app.routers.store_router import router as store_router
 from app.routers.webhook_router import router as webhook_router
 from app.websocket.websocket_router import router as websocket_router
 from app.routers.alert_router import router as alert_router
+from app.middleware.auth_middleware import AuthMiddleware
 import asyncio
 import os
 
@@ -40,6 +41,7 @@ def startup_event():
 
     test_connection()
 
+app.add_middleware(AuthMiddleware)
 app.include_router(camera_router)
 app.include_router(user_router)
 app.include_router(store_router)

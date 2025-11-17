@@ -16,3 +16,4 @@ class Alert(Base):
     notes = Column(String, nullable=True)
     store_id = Column(String, index=True, nullable=False)
     camera_id = Column(String, index=True, nullable=False)
+    updated_by = Column(String, nullable=True)
