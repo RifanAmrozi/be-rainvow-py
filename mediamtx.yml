@@ -1,13 +1,57 @@
 paths:
+  biru:
+    source: rtsp://10.254.186.25/live/ch00_0
+    sourceOnDemand: true
+    sourceProtocol: tcp
+  cam-11:
+    source: rtsp://admin:BM07082015@192.168.3.13:554/ch1/main/av_stream
+    sourceOnDemand: true
+    sourceProtocol: tcp
+  cam-12:
+    source: rtsp://admin:BM07082015@192.168.3.14:554/ch1/main/av_stream
+    sourceOnDemand: true
+    sourceProtocol: tcp
+  cam-14:
+    source: rtsp://admin:BM07082015@192.168.3.16:554/ch1/main/av_stream
+    sourceOnDemand: true
+    sourceProtocol: tcp
+  cam-17:
+    source: rtsp://admin:BM07082015@192.168.3.19:554/ch1/main/av_stream
+    sourceOnDemand: true
+    sourceProtocol: tcp
+  cam-18:
+    source: rtsp://admin:BM07082015@192.168.3.20:554/ch1/main/av_stream
+    sourceOnDemand: true
+    sourceProtocol: tcp
+  cam-26:
+    source: rtsp://admin:BM07082015@192.168.3.28:554/ch1/main/av_stream
+    sourceOnDemand: true
+    sourceProtocol: tcp
+  cam-5:
+    source: rtsp://admin:BM07082015@192.168.3.7:554/ch1/main/av_stream
+    sourceOnDemand: true
+    sourceProtocol: tcp
+  cam-9:
+    source: rtsp://admin:BM07082015@192.168.3.11:554/ch1/main/av_stream
+    sourceOnDemand: true
+    sourceProtocol: tcp
+  cam1:
+    source: rtsp://admin:BM07082015@192.168.3.3:554/ch1/main/av_stream
+    sourceOnDemand: true
+    sourceProtocol: tcp
+  cam2:
+    source: rtsp://192.168.0.1:554/ch1/main/av_stream
+    sourceOnDemand: true
+    sourceProtocol: tcp
   cctv-medan:
+    rtspTransport: tcp
     source: https://atcsdishub.medan.go.id/stream/L2AHMADYANIPULAUPINANG/stream.m3u8
     sourceOnDemand: true
-    rtspTransport: tcp
-  xample001:
+  iklan:
     source: rtsp://170.93.143.139/rtplive/470011e600ef003a004ee33696235daa
     sourceOnDemand: true
     sourceProtocol: tcp
-  xample002:
-    source: rtsp://10.63.47.25/live/ch00_0
+  orange:
+    source: rtsp://admin:admin@10.254.186.7:8554/Streaming/Channels/101
     sourceOnDemand: true
     sourceProtocol: tcp

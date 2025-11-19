@@ -9,9 +9,11 @@ class AlertCreate(BaseModel):
     incident_start: datetime
     is_valid: Optional[bool] = None
     video_url: Optional[str] = None
+    photo_url: Optional[str] = None
     notes: Optional[str] = None
     store_id: str
     camera_id: str
+    updated_by: Optional[str] = None
 
 
 class AlertResponse(AlertCreate):
@@ -23,3 +25,8 @@ class AlertResponse(AlertCreate):
 
     class Config:
         orm_mode = True
+
+class AlertUpdate(BaseModel):
+    title: Optional[str] = None
+    is_valid: Optional[bool] = None
+    notes: Optional[str] = None

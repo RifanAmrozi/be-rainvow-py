@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from app.model.alert import Alert
-from app.model.alert_schema import AlertCreate
+from app.model.alert_schema import AlertCreate, AlertUpdate
 from app.model.camera import Camera
 from typing import Optional
 from datetime import datetime
@@ -46,12 +46,17 @@ def get_alert_by_id(db: Session, id: str):
     alert_dict["aisle_loc"] = aisle_loc
     return alert_dict
 
-def update_alert(db: Session, id: str, data: AlertCreate):
+def update_alert(db: Session, id: str, data: AlertUpdate, updated_by: Optional[str] = None):
     alert = db.query(Alert).filter(Alert.id == id).first()
     if alert:
-        alert.title = data.title
-        alert.is_valid = data.is_valid
-        alert.notes = data.notes
+        if data.title is not None:
+            alert.title = data.title
+        if data.is_valid is not None:
+            alert.is_valid = data.is_valid
+        if data.notes is not None:
+            alert.notes = data.notes
+        if updated_by is not None:
+            alert.updated_by = updated_by
         db.commit()
         db.refresh(alert)
     return alert
@@ -66,6 +71,7 @@ def get_alerts_by_store(db: Session, is_valid: Optional[bool], store_id: str):
         )
         .join(Camera, Alert.camera_id == Camera.id)
         .filter(Alert.store_id == store_id)
+        .order_by(Alert.incident_start.desc())
     )
     if is_valid is not None:
         query = query.filter(Alert.is_valid.is_(is_valid))

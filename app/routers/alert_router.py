@@ -2,9 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 from app.db.session import get_db
-from app.model.alert_schema import AlertCreate, AlertResponse
+from app.model.alert_schema import AlertCreate, AlertResponse, AlertUpdate
 from app.repository import alert_repository
 from typing import Optional
+from fastapi import Request
 
 import uuid
 router = APIRouter(
@@ -23,13 +24,17 @@ def create_alert(alert: AlertCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Failed to insert alert: {e}")
     
 @router.put("/{alert_id}", response_model=AlertResponse)
-def update_alert(alert_id: str, alert: AlertCreate, db: Session = Depends(get_db)):
+def update_alert(alert_id: str, alert: AlertUpdate, request: Request, db: Session = Depends(get_db)):
     """Update an existing alert record."""
     existing_alert = alert_repository.get_alert_by_id(db, alert_id)
     if not existing_alert:
         raise HTTPException(status_code=404, detail="Alert not found")
     try:
-        updated_alert = alert_repository.update_alert(db, alert_id, alert)
+        user = getattr(request.state, "user", None)
+        if not user or not user.get("id"):
+            raise HTTPException(status_code=401, detail="Unauthorized")
+        updated_by = user["id"]
+        updated_alert = alert_repository.update_alert(db, alert_id, alert, updated_by=updated_by)
         return updated_alert
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to update alert: {e}")
