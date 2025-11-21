@@ -10,6 +10,8 @@ import json
 import os
 from datetime import datetime
 from enum import Enum
+import uuid
+
 
 class DetectionPhase(Enum):
     """Fase deteksi shoplifting"""
@@ -4180,6 +4182,17 @@ class ShopliftingPoseDetectorWithGrab:
                         cv2.putText(processed, reason, (x1, y_offset),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
                         y_offset += 20
+
+                    alert_payload = {
+                        "id": str(uuid.uuid4()),
+                        "title": "Shoplifting Alert",
+                        "incident_start": datetime.utcnow().isoformat(),
+                        "is_valid": None,
+                        "video_url": clip_name,
+                        "notes": f"Reasons: {reasons}"
+                    }
+
+                    return "processed", [alert_payload]
                 
                 # NON-ALERT: Draw phase status
                 else:
