@@ -4223,18 +4223,6 @@ class ShopliftingPoseDetectorWithGrab:
                         print(f"   Reasons: {reasons}")
                         if clip_name:
                             print(f"   Clip: {clip_name}")
-
-                    # TODO: use real data
-                    alert_payload = {
-                        "id": str(uuid.uuid4()),
-                        "title": "Shoplifting Alert",
-                        "incident_start": datetime.utcnow().isoformat(),
-                        "is_valid": None,
-                        "video_url": clip_name,
-                        "notes": f"   Reasons: {reasons}"
-                    }
-
-                    return "processed", [alert_payload]
                     
                     # Draw RED bounding box untuk alert
                     cv2.rectangle(processed, (x1, y1), (x2, y2), (0, 0, 255), 5)
