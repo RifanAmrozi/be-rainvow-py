@@ -2,13 +2,13 @@ import asyncio
 import time
 import cv2
 import numpy as np
-from app.service.notification.apn_service import send_apn_notification
+from app.service.notification import send_apn_notification
 from collections import deque
 from app.service.detection import ShopliftingPoseDetectorWithGrab, ThreadedRTSPCapture
 from app.service.storage import get_public_url
-from app.repository.user import get_devices
+from app.repository.user_repository import get_devices
 from app.db.session import SessionLocal, db_session
-from app.repository.camera import get_all_cameras
+from app.repository.camera_repository import get_all_cameras
 from app.repository.alert_repository import insert_alert
 from uuid import UUID
 

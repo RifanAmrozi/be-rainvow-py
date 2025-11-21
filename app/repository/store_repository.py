@@ -4,7 +4,7 @@ from typing import Optional
 from app.model.store import Store
 from app.model.camera import Camera
 from app.model.store_schema import StoreCreate
-from app.repository.camera import get_local_ip
+from app.repository.camera_repository import get_local_ip
 import re
 import uuid
 

@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.db.session import get_db
-from app.repository.user import create_user, get_user_by_name, register_device_token
+from app.repository.user_repository import create_user, get_user_by_name, register_device_token
 from app.model.user_schema import UserCreate, UserResponse, UserLogin
 from app.model.device_schema import DeviceCreate
 from app.auth.utils import verify_password, create_access_token

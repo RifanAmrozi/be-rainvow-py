@@ -3,8 +3,9 @@ from app.model.camera import Camera
 from app.model.camera_schema import CameraCreate
 import socket
 import yaml
+import netifaces
 
-def get_all_cameras(db: Session, id: str = None, name: str = None, store_id: str = None):
+def get_all_cameras(db: Session, id: str = None, name: str = None, store_id: str = None, aisle_loc: str = None):
     try:
         query = db.query(Camera)
         if id:
@@ -13,6 +14,8 @@ def get_all_cameras(db: Session, id: str = None, name: str = None, store_id: str
             query = query.filter(Camera.name.ilike(f"%{name}%"))
         if store_id:
             query = query.filter(Camera.store_id == store_id)
+        if aisle_loc:
+            query = query.filter(Camera.aisle_loc.ilike(f"%{aisle_loc}%"))
         return query.all()
     except Exception as e:
         print(f"Error: {e}")
@@ -98,3 +101,23 @@ def update_rtsp(db: Session, camera: Camera, new_rtsp_url: str):
     add_camera_to_mediamtx(camera.name, new_rtsp_url)
 
     return camera
+
+def get_ip_of_interface(iface: str) -> str:
+    if iface in netifaces.interfaces():
+        addrs = netifaces.ifaddresses(iface)
+        if netifaces.AF_INET in addrs:
+            return addrs[netifaces.AF_INET][0]["addr"]
+    return "127.0.0.1"
+
+def get_aisle_locations(db: Session, store_id: str = None):
+    try:
+        locs = db.query(Camera.aisle_loc)
+        if store_id:
+            locs = locs.filter(Camera.store_id == store_id)
+            
+        locs = locs.distinct().all()
+
+        return [loc[0] for loc in locs]
+    except Exception as e:
+        print(f"Error: {e}")
+        return []
