@@ -14,6 +14,9 @@ db-migrate:
 	alembic upgrade head
 
 ip:
+	ipconfig getifaddr en1
+
+ip0:
 	ipconfig getifaddr en0
 
 mtx:

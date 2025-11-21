@@ -1,6 +1,7 @@
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from app.core.config import settings
+from contextlib import contextmanager
 
 
 def get_database_url():
@@ -15,10 +16,30 @@ def get_database_url():
 engine = create_engine(get_database_url())
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+@contextmanager
+def db_session():
+    """
+    Context manager that yields a Session, commits on success,
+    rolls back on exception, and always closes.
+    Use for short-lived DB work.
+    """
+    db = SessionLocal()
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
 def get_db():
     db = SessionLocal()
     try:
         yield db
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
 

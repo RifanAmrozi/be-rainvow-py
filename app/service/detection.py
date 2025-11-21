@@ -10,8 +10,12 @@ import json
 import os
 from datetime import datetime
 from enum import Enum
+import random
 import uuid
-
+from app.core.config import settings
+import asyncio
+from pathlib import Path
+from app.service.storage import upload_video_to_supabase, upload_photo_to_supabase
 
 class DetectionPhase(Enum):
     """Fase deteksi shoplifting"""
@@ -3375,6 +3379,43 @@ class ShopliftingPoseDetectorWithGrab:
                 print(f"   🎯 Alert at frame: {alert_frame_idx + 1}/{len(all_frames)}")
                 print(f"   📝 Behavior: {pose_descriptions['full_description']}")
                 
+                base_dir = Path(__file__).parent.parent.parent
+                video_path = base_dir / video_filename
+                
+                def upload_in_background():
+                    """Background thread for upload"""
+                    print(f"🚀 Starting background upload for Track {track_id}: {video_path}")
+                    
+                    # Create NEW event loop for this thread
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    
+                    try:
+                        upload_results = loop.run_until_complete(
+                            upload_files_with_retry(video_path, max_retries=10)
+                        )
+                        
+                        if upload_results["video"]:
+                            print(f"✅ Video uploaded: {upload_results['video']['url']}")
+                        else:
+                            print(f"❌ Video upload failed")
+                        
+                        if upload_results["photo"]:
+                            print(f"✅ Photo uploaded: {upload_results['photo']['url']}")
+                        else:
+                            print(f"❌ Photo upload failed")
+                    except Exception as e:
+                        print(f"❌ Upload error: {e}")
+                        import traceback
+                        traceback.print_exc()
+                    finally:
+                        loop.close()
+                
+                # Start background thread
+                upload_thread = threading.Thread(target=upload_in_background, daemon=True)
+                upload_thread.start()
+                print(f"🔄 Upload started in background thread")
+
                 del self.recording_alerts[track_id]
                 return base_filename
             else:
@@ -3755,6 +3796,21 @@ class ShopliftingPoseDetectorWithGrab:
         return is_squatting, confidence, available_keypoints
 
     def process_frame(self, frame):
+        # TODO: comment Testing purpose: after 15 seconds sleep, send fake alert
+        # start_time = time.time()
+        # while time.time() - start_time < 15:
+        #     asyncio.sleep(0.1)
+
+        # alert_payload = {
+        #     "id": str(uuid.uuid4()),
+        #     "title": "Shoplifting Alert",
+        #     "incident_start": datetime.utcnow().isoformat(),
+        #     "is_valid": None,
+        #     "video_url": "shoplifting_track13_20251113_141745.mp4",
+        #     "notes": "   Reasons: Testing purpose"
+        # }
+
+        # return "processed", [alert_payload]
         """Process frame dengan zone visualization + natural position indicator"""
         self.frame_count += 1
         
@@ -4169,6 +4225,18 @@ class ShopliftingPoseDetectorWithGrab:
                         print(f"   Reasons: {reasons}")
                         if clip_name:
                             print(f"   Clip: {clip_name}")
+
+                    # TODO: use real data
+                    alert_payload = {
+                        "id": str(uuid.uuid4()),
+                        "title": "Shoplifting Alert",
+                        "incident_start": datetime.utcnow().isoformat(),
+                        "is_valid": None,
+                        "video_url": clip_name,
+                        "notes": f"   Reasons: {reasons}"
+                    }
+
+                    return "processed", [alert_payload]
                     
                     # Draw RED bounding box untuk alert
                     cv2.rectangle(processed, (x1, y1), (x2, y2), (0, 0, 255), 5)
@@ -4332,6 +4400,8 @@ class ShopliftingPoseDetectorWithGrab:
             print(f"\n✅ Log saved: {filename}")
             return filename
         return None
+    
+
 
 
 def main():
@@ -4370,7 +4440,7 @@ def main():
     print("3. QUALITY      (30-40 FPS)  - small model, 960x540, no skip")
     print("4. MAX QUALITY  (20-30 FPS)  - medium model, 1280x720, no skip")
     
-    fps_mode = input("Choose mode (1-4) [2]: ").strip() or "2"
+    fps_mode = input("Choose mode (1-4) [2]: ").strip() or "4"
     
     if fps_mode == "1":
         model_name = "yolo11n-pose.pt"
@@ -4391,11 +4461,11 @@ def main():
         skip_frames = 1
         debug_default = True
     else:  
-        model_name = "yolo11n-pose.pt"
-        frame_resolution = (960, 540)
-        inference_size = 416
+        model_name = "yolo11m-pose.pt"
+        frame_resolution = (1280, 720)
+        inference_size = 640
         skip_frames = 1
-        debug_default = False
+        debug_default = True
     
     print(f"\n✅ Selected: {model_name}, {frame_resolution}, skip={skip_frames}")
     print("=" * 80)
@@ -4641,3 +4711,103 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+async def wait_for_file_ready(file_path: Path, timeout: int = 60, check_interval: float = 10):
+    """
+    Wait for a file to exist and be fully written (stable size).
+    
+    Args:
+        file_path: Path to the file
+        timeout: Maximum seconds to wait
+        check_interval: Seconds between checks
+    
+    Returns:
+        True if file is ready, False if timeout
+    """
+    start_time = time.time()
+    last_size = -1
+    
+    while time.time() - start_time < timeout:
+        if file_path.exists():
+            current_size = file_path.stat().st_size
+            
+            # Check if file size is stable (file finished writing)
+            if current_size > 0 and current_size == last_size:
+                print(f"✅ File ready: {file_path.name} ({current_size} bytes)")
+                return True
+            
+            last_size = current_size
+            print(f"⏳ Waiting for file to stabilize: {file_path.name} ({current_size} bytes)")
+        else:
+            print(f"⏳ Waiting for file to exist: {file_path.name}")
+        
+        await asyncio.sleep(check_interval)
+    
+    print(f"❌ Timeout waiting for file: {file_path.name}")
+    return False
+
+async def upload_files_with_retry(video_path: Path, max_retries: int = 10):
+    """
+    Upload video and photo with retry logic and file readiness check.
+    
+    Args:
+        video_path: Path to the video file
+        max_retries: Maximum upload attempts per file
+    
+    Returns:
+        dict with video and photo upload results
+    """
+    results = {"video": None, "photo": None}
+    
+    # Wait for video file to be ready
+    print(f"🔍 Checking video file: {video_path}")
+    if await wait_for_file_ready(video_path, timeout=60):
+        # Try uploading video with retries
+        for attempt in range(max_retries):
+            try:
+                print(f"📤 Uploading video (attempt {attempt + 1}/{max_retries})...")
+                upload_res = upload_video_to_supabase(str(video_path))
+                
+                if upload_res:
+                    print(f"✅ Video upload success: {upload_res}")
+                    results["video"] = upload_res
+                    break
+                else:
+                    print(f"⚠️ Video upload returned None")
+                    
+            except Exception as e:
+                print(f"❌ Video upload error (attempt {attempt + 1}/{max_retries}): {e}")
+            
+            if attempt < max_retries - 1:
+                await asyncio.sleep(60)  # Wait before retry
+    else:
+        print(f"❌ Video file not ready: {video_path}")
+    
+    # Wait for photo file to be ready
+    photo_path = video_path.with_name(video_path.stem + "_crops") / "ALERT_crop.jpg"
+    print(f"🔍 Checking photo file: {photo_path}")
+    
+    if await wait_for_file_ready(photo_path, timeout=60):
+        # Try uploading photo with retries
+        for attempt in range(max_retries):
+            try:
+                print(f"📤 Uploading photo (attempt {attempt + 1}/{max_retries})...")
+                upload_res = upload_photo_to_supabase(str(photo_path))
+                
+                if upload_res:
+                    print(f"✅ Photo upload success: {upload_res}")
+                    results["photo"] = upload_res
+                    break
+                else:
+                    print(f"⚠️ Photo upload returned None")
+                    
+            except Exception as e:
+                print(f"❌ Photo upload error (attempt {attempt + 1}/{max_retries}): {e}")
+            
+            if attempt < max_retries - 1:
+                await asyncio.sleep(60)  # Wait before retry
+    else:
+        print(f"❌ Photo file not ready: {photo_path}")
+    
+    return results
+
