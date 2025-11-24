@@ -1,7 +1,7 @@
 from app.service.notification.apn_service import send_apn_notification
 
 send_apn_notification(
-    "4fd10beda6dff455be1cea5369f7d29344eaab86c3524810371ebf9bdaa15f98",
+    "e22f8b7999bac87cc788c5db87fc7b3c6fbfe0e1ce072b248941b7c35f62cb2c",
     {
         "title": "Test Push",
         "alert_message": "This is a test notification from FastAPI 🚀"

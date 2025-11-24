@@ -9,6 +9,7 @@ from app.routers.store_router import router as store_router
 from app.routers.webhook_router import router as webhook_router
 from app.websocket.websocket_router import router as websocket_router
 from app.routers.alert_router import router as alert_router
+from app.middleware.auth_middleware import AuthMiddleware
 import asyncio
 import os
 
@@ -35,11 +36,12 @@ async def get_clip(filename: str):
 def startup_event():
     print("🚀 Starting server...")
     # comment this line to disable stream worker on startup
-    app.state.stream_worker_task = asyncio.create_task(run_stream_worker(app, settings.CAMERA_ID))
+    app.state.stream_worker_task = asyncio.create_task(run_stream_worker(app, settings.STORE_ID))
     app.state.stop_stream_flag = False
 
     test_connection()
 
+app.add_middleware(AuthMiddleware)
 app.include_router(camera_router)
 app.include_router(user_router)
 app.include_router(store_router)
@@ -57,7 +59,7 @@ async def start_stream():
         return {"status": "already running"}
 
     app.state.stop_stream_flag = False
-    app.state.stream_worker_task = asyncio.create_task(run_stream_worker(app, settings.CAMERA_ID))
+    app.state.stream_worker_task = asyncio.create_task(run_stream_worker(app, settings.STORE_ID))
     return {"status": "started"}
 
 

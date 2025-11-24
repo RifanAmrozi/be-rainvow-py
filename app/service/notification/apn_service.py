@@ -46,14 +46,18 @@ def send_apn_notification(device_token: str, alert_data: dict):
             json.dumps(alert_data, default=str)
         )
 
+        media_url = safe_alert_data.pop("media_url", None)
         payload = Payload(
             alert={
                 "title": safe_alert_data.get("title", "Shoplifting Alert"),
                 "body": safe_alert_data.get("alert_message", "Suspicious activity detected."),
             },
-            sound="default",
-            custom={"alert_data": safe_alert_data},
+            sound="alert.wav",
+            # pass media URL in custom payload key (Notification Service Extension must know this key)
+            custom={"alert_data": safe_alert_data, **({"media-url": media_url} if media_url else {})},
+            mutable_content=True
         )
+        print("Payload:", payload.dict())
 
         topic = settings.APN_BUNDLE_ID
         client = get_apns_client()
