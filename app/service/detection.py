@@ -4355,9 +4355,9 @@ def main():
     print("1. MAX SPEED    (70-90 FPS)  - nano model, 640x480, skip 2 frames")
     print("2. BALANCED     (45-60 FPS)  - nano model, 960x540, skip 1 frame")
     print("3. QUALITY      (30-40 FPS)  - small model, 960x540, no skip")
-    print("4. MAX QUALITY  (20-30 FPS)  - medium model, 1280x720, no skip")
+    print("4. MAX QUALITY  (20-30 FPS)  - medium model, 1280x720, no skip [DEFAULT]")
     
-    fps_mode = input("Choose mode (1-4) [2]: ").strip() or "2"
+    fps_mode = input("Choose mode (1-4) [4]: ").strip() or "4"
     
     if fps_mode == "1":
         model_name = "yolo11n-pose.pt"
@@ -4365,34 +4365,36 @@ def main():
         inference_size = 320
         skip_frames = 2
         debug_default = False
+    elif fps_mode == "2":
+        model_name = "yolo11n-pose.pt"
+        frame_resolution = (960, 540)
+        inference_size = 416
+        skip_frames = 1
+        debug_default = False
     elif fps_mode == "3":
         model_name = "yolo11s-pose.pt"
         frame_resolution = (960, 540)
         inference_size = 416
         skip_frames = 1
         debug_default = False
-    elif fps_mode == "4":
+    else: 
         model_name = "yolo11m-pose.pt"
         frame_resolution = (1280, 720)
         inference_size = 640
-        skip_frames = 1
+        skip_frames = 0 
         debug_default = True
-    else:  
-        model_name = "yolo11n-pose.pt"
-        frame_resolution = (960, 540)
-        inference_size = 416
-        skip_frames = 1
-        debug_default = False
     
     print(f"\n✅ Selected: {model_name}, {frame_resolution}, skip={skip_frames}")
     print("=" * 80)
     
-    debug = input("\nDebug mode? (y/n) [n]: ").lower() == 'y'
+    debug_input = input("\nDebug mode? (y/n) [y]: ").strip().lower()
+    debug = debug_input != 'n' 
     
     print("\n📹 CCTV VIEWING ANGLE:")
     print("1. Normal (horizontal/eye-level)")
-    print("2. High-angle (top-down/ceiling CCTV)")
-    angle_mode = input("Choose angle (1-2) [1]: ").strip() or "1"
+    print("2. High-angle (top-down/ceiling CCTV) [DEFAULT]")
+    
+    angle_mode = input("Choose angle (1-2) [2]: ").strip() or "2"
     high_angle_mode = (angle_mode == "2")
     
     if high_angle_mode:
@@ -4488,7 +4490,6 @@ def main():
         while True:
             t_start = time.time()
             
-
             if threaded_capture:
                 ret, frame = threaded_capture.read()
                 
@@ -4628,3 +4629,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+    
