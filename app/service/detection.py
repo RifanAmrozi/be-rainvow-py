@@ -4466,12 +4466,6 @@ def main():
         inference_size = 640
         skip_frames = 0 
         debug_default = True
-    else:  
-        model_name = "yolo11m-pose.pt"
-        frame_resolution = (1280, 720)
-        inference_size = 640
-        skip_frames = 1
-        debug_default = True
     
     print(f"\n✅ Selected: {model_name}, {frame_resolution}, skip={skip_frames}")
     print("=" * 80)
