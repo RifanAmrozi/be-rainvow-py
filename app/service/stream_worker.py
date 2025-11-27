@@ -23,8 +23,10 @@ async def process_camera(app, camera):
     try:
         detector = ShopliftingPoseDetectorWithGrab(
             pose_model="yolo11m-pose.pt",
-            debug_mode=True
+            debug_mode=True,
         )
+        detector.process_every_n_frames = 0
+        detector.inference_size = 640
     except Exception as e:
         print(f"❌ Failed to initialize detector for camera {camera_id}: {e}")
         return
