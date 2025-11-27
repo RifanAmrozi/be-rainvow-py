@@ -55,3 +55,7 @@ paths:
     source: rtsp://admin:admin@10.254.186.7:8554/Streaming/Channels/101
     sourceOnDemand: true
     sourceProtocol: tcp
+  add:
+    source: rtsp://170.93.143.139/rtplive/470011e600ef003a004ee33696235daa
+    sourceOnDemand: true
+    sourceProtocol: tcp

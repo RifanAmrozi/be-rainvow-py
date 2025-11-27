@@ -27,3 +27,9 @@ env:
 
 freeze:
 	pip3 freeze > requirements.txt
+
+make ngrok:
+	ngrok http 3000
+
+make cf:
+	cloudflared tunnel --url http://localhost:8889
