@@ -2,13 +2,13 @@ import asyncio
 import time
 import cv2
 import numpy as np
-from app.service.notification.apn_service import send_apn_notification
+from app.service.notification import send_apn_notification
 from collections import deque
 from app.service.detection import ShopliftingPoseDetectorWithGrab, ThreadedRTSPCapture
 from app.service.storage import get_public_url
-from app.repository.user import get_devices
+from app.repository.user_repository import get_devices
 from app.db.session import SessionLocal, db_session
-from app.repository.camera import get_all_cameras
+from app.repository.camera_repository import get_all_cameras
 from app.repository.alert_repository import insert_alert
 from uuid import UUID
 
@@ -77,6 +77,8 @@ async def process_camera(app, camera):
                         # optional: send notifications after DB commit
                         for device in devices:
                             alertAPN = {k: str(v) if isinstance(v, UUID) else v for k, v in alert.items()}
+                            alertAPN['camera_name'] = camera.name
+                            alertAPN['aisle_loc'] = camera.aisle_loc
                             send_apn_notification(device.device_token, alertAPN)
                 except Exception as e:
                     # rollback already happened in db_session, just log and continue
@@ -112,9 +114,10 @@ async def run_stream_worker(app, store_id: str):
         # Create tasks for all cameras
         camera_tasks = []
         for camera in cameras:
-            task = asyncio.create_task(process_camera(app, camera))
-            camera_tasks.append(task)
-            print(f"✅ Started task for camera {camera.id}")
+            if camera.name=='Biru':
+                task = asyncio.create_task(process_camera(app, camera))
+                camera_tasks.append(task)
+                print(f"✅ Started task for camera {camera.id}")
         
         # Wait for all camera tasks to complete (or be cancelled)
         try:

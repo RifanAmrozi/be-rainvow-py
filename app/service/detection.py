@@ -10,9 +10,7 @@ import json
 import os
 from datetime import datetime
 from enum import Enum
-import random
 import uuid
-from app.core.config import settings
 import asyncio
 from pathlib import Path
 from app.service.storage import upload_video_to_supabase, upload_photo_to_supabase

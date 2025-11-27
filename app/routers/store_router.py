@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from typing import Optional
 from sqlalchemy.orm import Session
 from app.db.session import get_db
-from app.repository.store import create_store, get_stores, evaluate_store
+from app.repository.store_repository import create_store, get_stores, evaluate_store
 from app.model.store_schema import StoreCreate, StoreResponse
 from app.model.camera_schema import EvaluateRequest, CameraResponse
 from typing import List
