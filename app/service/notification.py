@@ -39,23 +39,36 @@ def get_apns_client():
         use_alternative_port=False,
     )
 
-
 def send_apn_notification(device_token: str, alert_data: dict):
     try:
-        safe_alert_data = json.loads(
-            json.dumps(alert_data, default=str)
-        )
+        # Deep clean the data first
+        safe_alert_data = json.loads(json.dumps(alert_data, default=str))
 
-        media_url = safe_alert_data.pop("media_url", None)
+        # extract media_url from BOTH possible keys
+        media_url = safe_alert_data.pop("media_url", None) \
+                    or safe_alert_data.pop("media-url", None) \
+                    or alert_data.get("media_url") \
+                    or alert_data.get("media-url")
+
+        # also remove "photo_url" from safe_alert_data if needed
+        safe_alert_data.pop("photo_url", None)
+
+        custom_payload = {
+            "alert_data": safe_alert_data
+        }
+
+        # add media-url at ROOT LEVEL (outside alert_data)
+        if media_url:
+            custom_payload["media-url"] = media_url
+
         payload = Payload(
             alert={
-                "title": "Activity Detected at "+alert_data.get("aisle_loc","Unknown Location"),
+                "title": "Activity Detected at " + alert_data.get("aisle_loc", "Unknown Location"),
                 "body": "Immediate attention needed",
             },
             sound="alert.wav",
-            # pass media URL in custom payload key (Notification Service Extension must know this key)
-            custom={"alert_data": safe_alert_data, **({"media-url": alert_data["photo_url"]} if media_url else {})},
-            mutable_content=True
+            custom=custom_payload,
+            mutable_content=True,
         )
         print("Payload:", payload.dict())
 

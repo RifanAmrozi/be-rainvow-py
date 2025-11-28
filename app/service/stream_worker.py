@@ -4,13 +4,14 @@ import cv2
 import numpy as np
 from app.service.notification import send_apn_notification
 from collections import deque
-from app.service.detection import ShopliftingPoseDetectorWithGrab, ThreadedRTSPCapture
+from app.service.detection import ShopliftingPoseDetectorWithGrab, ThreadedRTSPCapture, upload_photo_with_retry
 from app.service.storage import get_public_url
 from app.repository.user_repository import get_devices
 from app.db.session import SessionLocal, db_session
 from app.repository.camera_repository import get_all_cameras
 from app.repository.alert_repository import insert_alert
 from uuid import UUID
+from pathlib import Path
 
 
 async def process_camera(app, camera):
@@ -70,6 +71,9 @@ async def process_camera(app, camera):
                 alert["photo_url"] = get_public_url(alert["video_url"] + "_crops-ALERT_crop.jpg")
                 alert["video_url"] = get_public_url(video_filename)
                 print(f"🚨 Camera {camera_id} - Shoplifting alert detected:", alert)
+                base_dir = Path(__file__).parent.parent.parent
+                video_path = base_dir /"alert_clips" / video_filename
+                await upload_photo_with_retry(video_path, max_retries=10)
                 
                 try:
                     with db_session() as db:
@@ -81,6 +85,7 @@ async def process_camera(app, camera):
                             alertAPN = {k: str(v) if isinstance(v, UUID) else v for k, v in alert.items()}
                             alertAPN['camera_name'] = camera.name
                             alertAPN['aisle_loc'] = camera.aisle_loc
+                            alertAPN['media-url'] = alert["photo_url"]
                             send_apn_notification(device.device_token, alertAPN)
                 except Exception as e:
                     # rollback already happened in db_session, just log and continue

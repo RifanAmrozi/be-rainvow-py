@@ -3671,10 +3671,6 @@ class ShopliftingPoseDetectorWithGrab:
                 base_dir = Path(__file__).parent.parent.parent
                 video_path = base_dir / video_filename
                 def upload_in_background():
-                    """Background thread for upload"""
-                    print(f"🚀 Starting background upload for Track {track_id}: {video_path}")
-
-                    # Create NEW event loop for this thread
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
 
@@ -4072,52 +4068,52 @@ class ShopliftingPoseDetectorWithGrab:
                 is_walking = False
                 track = self.person_tracks[track_id]
                 
-                # 🆕 UPDATE PHASE TO WALKING if walking detected
-                if is_walking:
-                    if track['grab_detected']:
-                        # ✅ JANGAN masuk WALKING phase!
-                        # Simpan context bahwa orang sedang jalan
-                        if not track['walking_with_item']:
-                            track['pre_walking_phase'] = track['phase']
-                            track['walking_with_item'] = True
+                # # 🆕 UPDATE PHASE TO WALKING if walking detected
+                # if is_walking:
+                #     if track['grab_detected']:
+                #         # ✅ JANGAN masuk WALKING phase!
+                #         # Simpan context bahwa orang sedang jalan
+                #         if not track['walking_with_item']:
+                #             track['pre_walking_phase'] = track['phase']
+                #             track['walking_with_item'] = True
                             
-                            if self.debug_mode:
-                                print(f"🚶🎒 Track {track_id}: WALKING WITH GRABBED ITEM!")
-                                print(f"   Current phase: {track['phase'].value}")
-                                print(f"   Speed: {speed:.1f}px/f, Direction: {direction}")
+                #             if self.debug_mode:
+                #                 print(f"🚶🎒 Track {track_id}: WALKING WITH GRABBED ITEM!")
+                #                 print(f"   Current phase: {track['phase'].value}")
+                #                 print(f"   Speed: {speed:.1f}px/f, Direction: {direction}")
                         
-                        # JANGAN ubah phase, JANGAN skip detection!
-                        # Lanjutkan ke proses detection normal
+                #         # JANGAN ubah phase, JANGAN skip detection!
+                #         # Lanjutkan ke proses detection normal
                         
-                    elif track['phase'] == DetectionPhase.IDLE:
-                        # Normal walking (tidak ada barang)
-                        track['phase'] = DetectionPhase.WALKING
-                        track['phase_start_frame'] = self.frame_count
+                #     elif track['phase'] == DetectionPhase.IDLE:
+                #         # Normal walking (tidak ada barang)
+                #         track['phase'] = DetectionPhase.WALKING
+                #         track['phase_start_frame'] = self.frame_count
                         
-                        if self.debug_mode:
-                            print(f"🚶 Track {track_id}: IDLE -> WALKING (speed: {speed:.1f}px/f, dir: {direction})")
+                #         if self.debug_mode:
+                #             print(f"🚶 Track {track_id}: IDLE -> WALKING (speed: {speed:.1f}px/f, dir: {direction})")
                 
-                # 🆕 SKIP DETECTION if in WALKING state
-                if track['phase'] == DetectionPhase.WALKING:
-                    # Check if stopped walking
-                    if not is_walking and track['stationary_frames'] >= 8:  # Stopped for 8+ frames
-                        track['phase'] = DetectionPhase.IDLE
-                        track['phase_start_frame'] = self.frame_count
+                # # 🆕 SKIP DETECTION if in WALKING state
+                # if track['phase'] == DetectionPhase.WALKING:
+                #     # Check if stopped walking
+                #     if not is_walking and track['stationary_frames'] >= 8:  # Stopped for 8+ frames
+                #         track['phase'] = DetectionPhase.IDLE
+                #         track['phase_start_frame'] = self.frame_count
                         
-                        if self.debug_mode:
-                            print(f"🛑 Track {track_id}: WALKING -> IDLE (stopped)")
+                #         if self.debug_mode:
+                #             print(f"🛑 Track {track_id}: WALKING -> IDLE (stopped)")
                     
-                    # DRAW WALKING INDICATOR
-                    cv2.rectangle(processed, (x1, y1), (x2, y2), (255, 200, 0), 2)  # Cyan
-                    label = f"ID:{track_id} [WALKING {speed:.1f}px/f]"
-                    if direction:
-                        label += f" {direction.upper()}"
+                #     # DRAW WALKING INDICATOR
+                #     cv2.rectangle(processed, (x1, y1), (x2, y2), (255, 200, 0), 2)  # Cyan
+                #     label = f"ID:{track_id} [WALKING {speed:.1f}px/f]"
+                #     if direction:
+                #         label += f" {direction.upper()}"
                     
-                    cv2.putText(processed, label, (x1, y1 - 10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 200, 0), 2)
+                #     cv2.putText(processed, label, (x1, y1 - 10),
+                #             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 200, 0), 2)
                     
-                    # SKIP DETECTION (hanya untuk normal walking)
-                    continue
+                #     # SKIP DETECTION (hanya untuk normal walking)
+                #     continue
 
                 
                 # ✅ STEP 3.2: CHECK KEYPOINT STABILITY
