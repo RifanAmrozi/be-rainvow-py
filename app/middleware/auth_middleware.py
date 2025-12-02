@@ -15,7 +15,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         if token:
             try:
-                payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+                # TODO: handle token expiration and refresh if needed
+                payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM], options={"verify_exp": False})
                 # adapt to the fields you return on login
                 user_id = payload.get("id") or payload.get("sub")
                 store_id = payload.get("store_id")
@@ -25,6 +26,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     "payload": payload
                 }
             except JWTError:
+                print("⚠️ Invalid JWT token")   
                 request.state.user = None
 
         response = await call_next(request)

@@ -49,3 +49,26 @@ def evaluate_store(db: Session, id: Optional[str] = None, ip: Optional[str] = No
     db.commit()
 
     return cameras
+
+def set_webrtc_store(db: Session, id: Optional[str] = None, url: Optional[str] = None):
+    if not id:
+        raise HTTPException(status_code=400, detail="Store ID is required")
+
+    store = db.query(Store).filter(Store.id == id).first()
+    if not store:
+        raise HTTPException(status_code=404, detail="Store not found")
+
+    cameras = db.query(Camera).filter(Camera.store_id == store.id).all()
+
+    for camera in cameras:
+        # cut until the first "/" after scheme:// and replace with new url
+        camera.webrtc_url = re.sub(
+            r"^https?://[^/]+",   # match: http(s):// + ANYTHING until the next /
+            url,                  # your new base URL (must include scheme)
+            camera.webrtc_url
+        )
+
+        db.add(camera)
+
+    db.commit()
+    return cameras

@@ -13,6 +13,10 @@ class EvaluateRequest(BaseModel):
     id: str
     ip: Optional[str] = None
 
+class SetWebRTCRequest(BaseModel):
+    id: str
+    url: str
+
 class CameraResponse(CameraCreate):
     id: UUID
     store_id: UUID

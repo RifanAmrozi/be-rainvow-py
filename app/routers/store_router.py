@@ -2,9 +2,9 @@ from fastapi import APIRouter, Depends, Query
 from typing import Optional
 from sqlalchemy.orm import Session
 from app.db.session import get_db
-from app.repository.store_repository import create_store, get_stores, evaluate_store
+from app.repository.store_repository import create_store, get_stores, evaluate_store, set_webrtc_store
 from app.model.store_schema import StoreCreate, StoreResponse
-from app.model.camera_schema import EvaluateRequest, CameraResponse
+from app.model.camera_schema import EvaluateRequest, CameraResponse, SetWebRTCRequest
 from typing import List
 
 router = APIRouter(prefix="/store", tags=["Store"])
@@ -24,3 +24,7 @@ def list_stores(
 @router.post("/evaluate", response_model=List[CameraResponse])
 def evaluate(data: EvaluateRequest, db: Session = Depends(get_db)):
     return evaluate_store(db, id=data.id, ip=data.ip)
+
+@router.post("/set-webrtc", response_model=List[CameraResponse])
+def set_webrtc(data: SetWebRTCRequest, db: Session = Depends(get_db)):
+    return set_webrtc_store(db, id=data.id, url=data.url)
